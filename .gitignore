@@ -1,0 +1,18 @@
+# secrets & local state
+.env
+.env.*
+!.env.example
+*.db
+backend/.aio_browser_state.json
+backend/agent/.state/
+.playwright-session/
+.playwright-mcp/
+.claude/settings.local.json
+reports/
+
+# python / tooling
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store

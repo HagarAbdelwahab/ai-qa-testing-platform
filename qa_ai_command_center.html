@@ -1,0 +1,325 @@
+
+<h2 class="sr-only">QA AI Command Center – dashboard showing sprint execution, ticket list with AI agent actions, testware preparation, and team allocation</h2>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans)}
+.dash{display:grid;grid-template-columns:260px 1fr;gap:12px;padding:12px;min-height:600px}
+.sidebar{display:flex;flex-direction:column;gap:10px}
+.main{display:flex;flex-direction:column;gap:10px}
+.card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:14px}
+.card-header{font-size:11px;font-weight:500;color:var(--color-text-secondary);letter-spacing:.05em;text-transform:uppercase;margin-bottom:10px}
+.metric-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.metric{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px 12px}
+.metric-label{font-size:11px;color:var(--color-text-secondary);margin-bottom:4px}
+.metric-val{font-size:22px;font-weight:500;color:var(--color-text-primary)}
+.metric-val.green{color:var(--color-text-success)}
+.metric-val.red{color:var(--color-text-danger)}
+.metric-val.amber{color:var(--color-text-warning)}
+.top-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ticket-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--color-border-tertiary);cursor:pointer}
+.ticket-row:last-child{border-bottom:none}
+.ticket-id{font-size:11px;font-family:var(--font-mono);color:var(--color-text-info);min-width:56px}
+.ticket-title{font-size:13px;color:var(--color-text-primary);flex:1}
+.badge{font-size:10px;padding:2px 7px;border-radius:4px;font-weight:500}
+.b-critical{background:var(--color-background-danger);color:var(--color-text-danger)}
+.b-high{background:var(--color-background-warning);color:var(--color-text-warning)}
+.b-medium{background:var(--color-background-info);color:var(--color-text-info)}
+.b-low{background:var(--color-background-secondary);color:var(--color-text-secondary)}
+.b-ready{background:var(--color-background-success);color:var(--color-text-success)}
+.b-pending{background:var(--color-background-warning);color:var(--color-text-warning)}
+.b-progress{background:var(--color-background-info);color:var(--color-text-info)}
+.agent-btn{font-size:11px;padding:3px 9px;border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-secondary);background:transparent;color:var(--color-text-primary);cursor:pointer;white-space:nowrap}
+.agent-btn:hover{background:var(--color-background-secondary)}
+.member-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--color-border-tertiary)}
+.member-row:last-child{border-bottom:none}
+.avatar{width:28px;height:28px;border-radius:50%;background:var(--color-background-info);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;color:var(--color-text-info);flex-shrink:0}
+.member-name{font-size:12px;color:var(--color-text-primary);min-width:60px}
+.bar-wrap{flex:1;background:var(--color-background-secondary);border-radius:4px;height:6px;overflow:hidden}
+.bar-fill{height:6px;border-radius:4px;background:var(--color-background-info)}
+.bar-fill.done{background:var(--color-background-success)}
+.member-stat{font-size:11px;color:var(--color-text-secondary);min-width:40px;text-align:right}
+.sprint-arc{display:flex;align-items:center;justify-content:center;padding:8px 0 4px}
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.leg-item{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--color-text-secondary)}
+.leg-dot{width:8px;height:8px;border-radius:2px}
+.agent-overlay{display:none;position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.45);align-items:flex-start;justify-content:center;padding:40px 16px;z-index:10;border-radius:var(--border-radius-lg)}
+.agent-overlay.show{display:flex}
+.agent-modal{background:var(--color-background-primary);border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-lg);width:100%;max-width:480px;overflow:hidden}
+.modal-header{padding:12px 16px;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;justify-content:space-between;align-items:flex-start}
+.modal-tag{font-size:10px;color:var(--color-text-info);font-family:var(--font-mono);margin-bottom:2px}
+.modal-title{font-size:14px;font-weight:500;color:var(--color-text-primary)}
+.close-btn{background:none;border:none;font-size:18px;color:var(--color-text-secondary);cursor:pointer;line-height:1;padding:0}
+.modal-body{padding:14px 16px}
+.action-btn{width:100%;padding:10px;border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-secondary);background:transparent;color:var(--color-text-primary);cursor:pointer;font-size:13px;font-weight:500;text-align:left;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.action-btn:hover{background:var(--color-background-secondary)}
+.action-btn.primary{border-color:var(--color-border-info);color:var(--color-text-info)}
+.step-log{margin-top:10px;border-radius:var(--border-radius-md);background:var(--color-background-secondary);padding:10px 12px;font-size:12px;font-family:var(--font-mono);color:var(--color-text-secondary);line-height:1.8}
+.step-line{opacity:0;animation:fadeIn .3s forwards}
+@keyframes fadeIn{to{opacity:1}}
+.result-box{margin-top:10px;border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-success);background:var(--color-background-success);padding:10px 12px}
+.tc-item{padding:7px 0;border-bottom:0.5px solid var(--color-border-tertiary);font-size:12px}
+.tc-item:last-child{border-bottom:none}
+.tc-id{font-family:var(--font-mono);color:var(--color-text-success);font-size:11px}
+.req-pre{font-family:var(--font-mono);font-size:11px;color:var(--color-text-primary);white-space:pre;overflow-x:auto;line-height:1.7}
+.tab-row{display:flex;gap:0;border-bottom:0.5px solid var(--color-border-tertiary);margin-bottom:10px}
+.tab{font-size:12px;padding:6px 12px;cursor:pointer;color:var(--color-text-secondary);border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none}
+.tab.active{color:var(--color-text-primary);border-bottom-color:var(--color-text-primary)}
+.nav-item{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:var(--border-radius-md);cursor:pointer;font-size:13px;color:var(--color-text-secondary)}
+.nav-item:hover,.nav-item.active{background:var(--color-background-secondary);color:var(--color-text-primary)}
+.nav-dot{width:6px;height:6px;border-radius:50%}
+.status-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:12px;border-bottom:0.5px solid var(--color-border-tertiary)}
+.status-row:last-child{border-bottom:none}
+</style>
+
+<div style="position:relative">
+<div class="dash">
+
+  <div class="sidebar">
+    <div class="card" style="padding:12px 14px">
+      <div style="font-size:15px;font-weight:500;color:var(--color-text-primary);margin-bottom:2px">QA Command Center</div>
+      <div style="font-size:11px;color:var(--color-text-secondary)">AI-Powered · Sprint 22</div>
+      <div style="margin-top:12px;display:flex;flex-direction:column;gap:2px">
+        <div class="nav-item active"><span class="nav-dot" style="background:#378ADD"></span> Sprint dashboard</div>
+        <div class="nav-item"><span class="nav-dot" style="background:#1D9E75"></span> Testware prep</div>
+        <div class="nav-item"><span class="nav-dot" style="background:#D85A30"></span> Ticket queue</div>
+        <div class="nav-item"><span class="nav-dot" style="background:#D4537E"></span> Team allocation</div>
+        <div class="nav-item"><span class="nav-dot" style="background:#7F77DD"></span> Agent history</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Sprint health</div>
+      <div id="donut-wrap" class="sprint-arc">
+        <svg viewBox="0 0 120 120" width="110" height="110" role="img" aria-label="Donut chart: 28 passed, 5 failed, 4 blocked, 8 not run out of 45 total">
+          <circle cx="60" cy="60" r="44" fill="none" stroke="var(--color-background-secondary)" stroke-width="14"/>
+          <circle cx="60" cy="60" r="44" fill="none" stroke="#1D9E75" stroke-width="14" stroke-dasharray="172 104" stroke-dashoffset="110" stroke-linecap="butt"/>
+          <circle cx="60" cy="60" r="44" fill="none" stroke="#E24B4A" stroke-width="14" stroke-dasharray="31 245" stroke-dashoffset="-62" stroke-linecap="butt"/>
+          <circle cx="60" cy="60" r="44" fill="none" stroke="#EF9F27" stroke-width="14" stroke-dasharray="24 252" stroke-dashoffset="-93" stroke-linecap="butt"/>
+          <circle cx="60" cy="60" r="44" fill="none" stroke="#B4B2A9" stroke-width="14" stroke-dasharray="49 227" stroke-dashoffset="-117" stroke-linecap="butt"/>
+          <text x="60" y="56" text-anchor="middle" font-size="20" font-weight="500" fill="var(--color-text-primary)">45</text>
+          <text x="60" y="70" text-anchor="middle" font-size="10" fill="var(--color-text-secondary)">total</text>
+        </svg>
+      </div>
+      <div class="legend">
+        <div class="leg-item"><span class="leg-dot" style="background:#1D9E75"></span>Passed 28</div>
+        <div class="leg-item"><span class="leg-dot" style="background:#E24B4A"></span>Failed 5</div>
+        <div class="leg-item"><span class="leg-dot" style="background:#EF9F27"></span>Blocked 4</div>
+        <div class="leg-item"><span class="leg-dot" style="background:#B4B2A9"></span>Not run 8</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Quick actions</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button class="action-btn" onclick="sendPrompt('Generate a sprint 22 QA status report with pass rate, blockers, and team summary')">Sprint report ↗</button>
+        <button class="action-btn" onclick="sendPrompt('Which test cases have no coverage for sprint 22 tickets?')">Coverage gaps ↗</button>
+        <button class="action-btn" onclick="sendPrompt('Suggest re-allocation based on current sprint execution data')">Re-allocate ↗</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="metric-row">
+      <div class="metric"><div class="metric-label">Total cases</div><div class="metric-val">45</div></div>
+      <div class="metric"><div class="metric-label">Pass rate</div><div class="metric-val green">85%</div></div>
+      <div class="metric"><div class="metric-label">Blocked</div><div class="metric-val amber">4</div></div>
+      <div class="metric"><div class="metric-label">Failed</div><div class="metric-val red">5</div></div>
+    </div>
+
+    <div class="top-row">
+      <div class="card" style="position:relative">
+        <div class="card-header">Ticket queue – Sprint 22</div>
+        <div id="ticket-list">
+          <div class="ticket-row" onclick="openAgent('QA-101','User login flow – edge cases','High','Ready')">
+            <span class="ticket-id">QA-101</span>
+            <span class="ticket-title">User login flow – edge cases</span>
+            <span class="badge b-high">High</span>
+            <span class="badge b-ready">Ready</span>
+            <button class="agent-btn" onclick="event.stopPropagation();openAgent('QA-101','User login flow – edge cases','High','Ready')">Agent</button>
+          </div>
+          <div class="ticket-row" onclick="openAgent('QA-102','Payment gateway timeout handling','Critical','Pending')">
+            <span class="ticket-id">QA-102</span>
+            <span class="ticket-title">Payment gateway timeout</span>
+            <span class="badge b-critical">Critical</span>
+            <span class="badge b-pending">Pending</span>
+            <button class="agent-btn" onclick="event.stopPropagation();openAgent('QA-102','Payment gateway timeout handling','Critical','Pending')">Agent</button>
+          </div>
+          <div class="ticket-row" onclick="openAgent('QA-103','Profile update validation','Medium','In Progress')">
+            <span class="ticket-id">QA-103</span>
+            <span class="ticket-title">Profile update validation</span>
+            <span class="badge b-medium">Medium</span>
+            <span class="badge b-progress">In Progress</span>
+            <button class="agent-btn" onclick="event.stopPropagation();openAgent('QA-103','Profile update validation','Medium','In Progress')">Agent</button>
+          </div>
+          <div class="ticket-row" onclick="openAgent('QA-104','Search filters regression','Low','Ready')">
+            <span class="ticket-id">QA-104</span>
+            <span class="ticket-title">Search filters regression</span>
+            <span class="badge b-low">Low</span>
+            <span class="badge b-ready">Ready</span>
+            <button class="agent-btn" onclick="event.stopPropagation();openAgent('QA-104','Search filters regression','Low','Ready')">Agent</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Testware prep status</div>
+        <div>
+          <div class="status-row"><span style="color:var(--color-text-primary)">Test plan – Sprint 22</span><span class="badge b-ready">Ready</span></div>
+          <div class="status-row"><span style="color:var(--color-text-primary)">Regression suite</span><span class="badge b-ready">Ready</span></div>
+          <div class="status-row"><span style="color:var(--color-text-primary)">API test scripts</span><span class="badge b-progress">In Progress</span></div>
+          <div class="status-row"><span style="color:var(--color-text-primary)">Test data sets</span><span class="badge b-pending">Pending</span></div>
+          <div class="status-row"><span style="color:var(--color-text-primary)">Environment config</span><span class="badge b-ready">Ready</span></div>
+        </div>
+        <button class="action-btn primary" style="margin-top:12px;width:100%" onclick="sendPrompt('Run testware preparation script for Sprint 22 and report what is missing')">Run prep agent ↗</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Team allocation & execution – Sprint 22</div>
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px">
+        <div>
+          <div style="display:flex;gap:16px;font-size:10px;color:var(--color-text-secondary);margin-bottom:6px;padding-left:90px">
+            <span>Allocated</span><span>Executed</span>
+          </div>
+          <div class="member-row">
+            <div class="avatar">SK</div>
+            <div class="member-name">Sara K.</div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+              <div class="bar-wrap"><div class="bar-fill" style="width:80%"></div></div>
+              <div class="bar-wrap"><div class="bar-fill done" style="width:60%"></div></div>
+            </div>
+            <div class="member-stat">12 / 9</div>
+          </div>
+          <div class="member-row">
+            <div class="avatar">JR</div>
+            <div class="member-name">James R.</div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+              <div class="bar-wrap"><div class="bar-fill" style="width:67%"></div></div>
+              <div class="bar-wrap"><div class="bar-fill done" style="width:67%"></div></div>
+            </div>
+            <div class="member-stat">10 / 10</div>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex;gap:16px;font-size:10px;color:var(--color-text-secondary);margin-bottom:6px;padding-left:90px">
+            <span>Allocated</span><span>Executed</span>
+          </div>
+          <div class="member-row">
+            <div class="avatar" style="background:var(--color-background-warning);color:var(--color-text-warning)">NA</div>
+            <div class="member-name">Nour A.</div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+              <div class="bar-wrap"><div class="bar-fill" style="width:100%"></div></div>
+              <div class="bar-wrap"><div class="bar-fill done" style="width:40%"></div></div>
+            </div>
+            <div class="member-stat">15 / 6</div>
+          </div>
+          <div class="member-row">
+            <div class="avatar" style="background:var(--color-background-success);color:var(--color-text-success)">TW</div>
+            <div class="member-name">Tom W.</div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+              <div class="bar-wrap"><div class="bar-fill" style="width:53%"></div></div>
+              <div class="bar-wrap"><div class="bar-fill done" style="width:53%"></div></div>
+            </div>
+            <div class="member-stat">8 / 8</div>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:10px;padding:8px 10px;background:var(--color-background-warning);border-radius:var(--border-radius-md);font-size:12px;color:var(--color-text-warning);display:flex;align-items:center;gap:6px">
+        <span style="font-size:14px">⚠</span> Nour A. is behind — 9 cases unexecuted with 2 days left. <button style="margin-left:auto;font-size:11px;padding:2px 8px;border-radius:4px;border:0.5px solid var(--color-border-warning);background:transparent;color:var(--color-text-warning);cursor:pointer" onclick="sendPrompt('Suggest how to redistribute Nour\'s remaining 9 test cases across the team for sprint 22')">Suggest fix ↗</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="agent-overlay" id="agentOverlay">
+  <div class="agent-modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-tag" id="modalTag">AI AGENT</div>
+        <div class="modal-title" id="modalTitle">Ticket title</div>
+      </div>
+      <button class="close-btn" onclick="closeAgent()">×</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+</div>
+
+<script>
+let currentTicket = {};
+
+function openAgent(id, title, priority, status) {
+  currentTicket = {id, title, priority, status};
+  document.getElementById('modalTag').textContent = 'AI AGENT · ' + id;
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = `
+    <p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:12px">Select an action for the AI agent to perform on this ticket.</p>
+    <button class="action-btn primary" onclick="runAgent('testcases')">Generate test cases from ticket</button>
+    <button class="action-btn" onclick="runAgent('request')">Prepare full execution request</button>
+    <button class="action-btn" onclick="runAgent('gaps')">Identify coverage gaps</button>
+    <button class="action-btn" onclick="sendPrompt('Analyze ticket ${id} – ${title} and suggest edge cases I might be missing')">Ask Claude about this ticket ↗</button>
+  `;
+  document.getElementById('agentOverlay').classList.add('show');
+}
+
+function closeAgent() {
+  document.getElementById('agentOverlay').classList.remove('show');
+}
+
+async function runAgent(mode) {
+  const steps = {
+    testcases: ["Reading ticket requirements…","Extracting acceptance criteria…","Identifying scenarios…","Writing test steps…","Formatting for AIO…","Done — test cases ready"],
+    request: ["Parsing ticket metadata…","Resolving assignee…","Building payload schema…","Attaching test refs…","Validating structure…","Done — request ready"],
+    gaps: ["Scanning existing cases…","Comparing against criteria…","Identifying untested paths…","Scoring coverage risk…","Ranking gaps by severity…","Done — gaps identified"]
+  };
+  const s = steps[mode];
+  let html = `<div class="step-log" id="stepLog"></div>`;
+  document.getElementById('modalBody').innerHTML = html;
+  const log = document.getElementById('stepLog');
+  for (let i = 0; i < s.length; i++) {
+    await new Promise(r => setTimeout(r, 500));
+    const line = document.createElement('div');
+    line.className = 'step-line';
+    line.style.animationDelay = '0ms';
+    line.textContent = (i === s.length-1 ? '✓ ' : '> ') + s[i];
+    if (i === s.length-1) line.style.color = 'var(--color-text-success)';
+    log.appendChild(line);
+  }
+  await new Promise(r => setTimeout(r, 300));
+  if (mode === 'testcases') {
+    document.getElementById('modalBody').innerHTML += `
+      <div class="result-box">
+        <div style="font-size:11px;font-weight:500;color:var(--color-text-success);margin-bottom:8px">3 test cases generated</div>
+        <div class="tc-item"><div class="tc-id">TC-001</div><div>Valid credentials – successful login</div></div>
+        <div class="tc-item"><div class="tc-id">TC-002</div><div>Invalid password – error message shown</div></div>
+        <div class="tc-item"><div class="tc-id">TC-003</div><div>Locked account login attempt</div></div>
+      </div>
+      <button class="action-btn" style="margin-top:10px" onclick="sendPrompt('Push these 3 test cases for ${currentTicket.id} to AIO and assign to the team')">Push to AIO ↗</button>`;
+  } else if (mode === 'request') {
+    document.getElementById('modalBody').innerHTML += `
+      <div class="result-box">
+        <div style="font-size:11px;font-weight:500;color:var(--color-text-success);margin-bottom:8px">Execution request ready</div>
+        <pre class="req-pre">POST /api/qa/execute
+{
+  "ticketId": "${currentTicket.id}",
+  "priority": "${currentTicket.priority}",
+  "sprint": "Sprint 22",
+  "env": "staging",
+  "testCases": ["TC-001","TC-002","TC-003"],
+  "assignee": "auto",
+  "notify": true
+}</pre>
+      </div>
+      <button class="action-btn" style="margin-top:10px" onclick="sendPrompt('Execute this request for ${currentTicket.id} and monitor results')">Execute ↗</button>`;
+  } else {
+    document.getElementById('modalBody').innerHTML += `
+      <div class="result-box">
+        <div style="font-size:11px;font-weight:500;color:var(--color-text-success);margin-bottom:8px">2 coverage gaps found</div>
+        <div class="tc-item"><span style="color:var(--color-text-danger)">High risk</span> — Session expiry during login not tested</div>
+        <div class="tc-item"><span style="color:var(--color-text-warning)">Medium</span> — SSO/OAuth flow has no case</div>
+      </div>
+      <button class="action-btn" style="margin-top:10px" onclick="sendPrompt('Generate test cases for the coverage gaps found in ${currentTicket.id}')">Generate missing cases ↗</button>`;
+  }
+}
+</script>

@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>QA Agents</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+  <script src="/static/nav.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    .page{padding:20px;max-width:1200px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+
+    /* ── Action cards grid ──────────────────────────────────────────────────── */
+    .actions-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+
+    .action-card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:18px 20px;display:flex;flex-direction:column;gap:14px;transition:box-shadow .15s}
+    .action-card:hover{box-shadow:0 4px 16px rgba(27,107,69,0.10)}
+
+    .action-header{display:flex;align-items:center;gap:10px}
+    .action-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+    .icon-review{background:rgba(27,107,69,0.10)}
+    .icon-sub{background:rgba(14,95,223,0.10)}
+    .icon-tw{background:rgba(249,115,22,0.10)}
+
+    .action-title{font-size:13px;font-weight:600;color:var(--color-text-primary)}
+    .action-desc{font-size:11px;color:var(--color-text-secondary);margin-top:1px}
+
+    .action-body{display:flex;flex-direction:column;gap:8px}
+    .input-label{font-size:10px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+    .form-input{background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-sm);color:var(--color-text-primary);font-family:var(--font-sans);font-size:12px;padding:7px 10px;outline:none;width:100%;transition:border-color .15s}
+    .form-input:focus{border-color:var(--color-border-info)}
+
+    .btn{padding:8px 16px;border-radius:var(--border-radius-md);border:0.5px solid;cursor:pointer;font-size:12px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;transition:background .15s,opacity .15s;width:100%}
+    .btn:disabled{opacity:.4;cursor:not-allowed}
+    .btn-review{background:#1b6b45;border-color:#1b6b45;color:#fff}
+    .btn-review:hover:not(:disabled){background:#155737}
+    .btn-sub{background:#0e5fdf;border-color:#0e5fdf;color:#fff}
+    .btn-sub:hover:not(:disabled){background:#0b4db8}
+    .btn-tw{background:#f97316;border-color:#f97316;color:#fff}
+    .btn-tw:hover:not(:disabled){background:#ea6c10}
+
+    .icon-tsr{background:rgba(124,58,237,0.10)}
+    .btn-tsr{background:#7c3aed;border-color:#7c3aed;color:#fff}
+    .btn-tsr:hover:not(:disabled){background:#6d28d9}
+    .btn-ghost{background:transparent;border-color:var(--color-border-secondary);color:var(--color-text-primary);width:auto;padding:5px 10px;font-size:11px}
+    .check-row{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-text-secondary)}
+
+    /* ── Test summary review form ─────────────────────────────────────────── */
+    .tsr-form{display:flex;flex-direction:column;gap:14px}
+    .tsr-sec{border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+    .tsr-sec-title{font-size:12px;font-weight:600;color:var(--color-text-primary);display:flex;justify-content:space-between;align-items:center}
+    .tsr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}
+    .tsr-form textarea.form-input{min-height:70px;resize:vertical;font-family:var(--font-sans)}
+    .tsr-table{width:100%;border-collapse:collapse;font-size:12px}
+    .tsr-table td,.tsr-table th{padding:4px;border-bottom:0.5px solid var(--color-border-tertiary);text-align:left;vertical-align:top}
+    .tsr-table th{font-size:10px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase}
+    .tsr-note{font-size:11px;color:var(--color-text-warning)}
+    .tsr-links{display:flex;gap:10px;flex-wrap:wrap}
+    .tsr-links a{font-size:12px;padding:6px 12px;border-radius:var(--border-radius-md);background:var(--color-background-info);color:var(--color-text-info);text-decoration:none;font-weight:500}
+
+    /* ── Output panel ───────────────────────────────────────────────────────── */
+    .output-panel{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden}
+    .panel-head{padding:10px 16px;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:space-between}
+    .panel-label{font-size:12px;font-weight:500;color:var(--color-text-primary);display:flex;align-items:center;gap:8px}
+    .panel-agent-tag{font-size:10px;padding:2px 7px;border-radius:4px;background:var(--color-background-info);color:var(--color-text-info);font-weight:500}
+    .panel-close{background:none;border:none;font-size:16px;color:var(--color-text-secondary);cursor:pointer;line-height:1;padding:0 2px}
+    .panel-close:hover{color:var(--color-text-primary)}
+    .panel-body{padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+
+    .log-box{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px 12px;font-size:11.5px;font-family:var(--font-mono);color:var(--color-text-secondary);line-height:1.75;max-height:260px;overflow-y:auto}
+    .log-line{animation:fadeIn .2s ease}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+    .review-out{font-size:13px;line-height:1.65;color:var(--color-text-primary);max-height:520px;overflow-y:auto}
+    .review-out h2{font-size:15px;font-weight:600;margin:14px 0 6px}
+    .review-out h3{font-size:13px;font-weight:600;margin:12px 0 4px;color:var(--color-text-info)}
+    .review-out p{margin-bottom:8px;color:var(--color-text-secondary)}
+    .review-out strong{color:var(--color-text-primary)}
+    .review-out hr{border:none;border-top:0.5px solid var(--color-border-tertiary);margin:12px 0}
+    .review-out ul,.review-out ol{padding-left:18px;margin-bottom:8px}
+    .review-out li{margin-bottom:3px;color:var(--color-text-secondary)}
+    .review-out table{width:100%;border-collapse:collapse;font-size:12px;margin:8px 0}
+    .review-out th{text-align:left;padding:5px 8px;font-size:10px;font-weight:500;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary);text-transform:uppercase}
+    .review-out td{padding:5px 8px;border-bottom:0.5px solid var(--color-border-tertiary);color:var(--color-text-secondary)}
+    .review-out code{font-family:var(--font-mono);font-size:11px;background:var(--color-background-secondary);padding:1px 5px;border-radius:3px}
+
+    .subtask-block{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px 12px}
+    .subtask-story-label{font-size:11px;font-weight:600;color:var(--color-text-primary);margin-bottom:7px;padding-bottom:6px;border-bottom:0.5px solid var(--color-border-tertiary)}
+    .subtask-row{display:flex;align-items:center;gap:10px;padding:3px 0;font-size:12px}
+    .sub-key{font-family:var(--font-mono);font-size:11px;color:var(--color-text-info);min-width:90px}
+    .sub-name-new{color:var(--color-text-success)}
+    .sub-name-exist{color:var(--color-text-secondary);font-style:italic}
+
+    .status-row{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--color-text-secondary)}
+    .spinner{display:inline-block;width:11px;height:11px;border:1.5px solid var(--color-border-secondary);border-top-color:var(--color-text-info);border-radius:50%;animation:spin .65s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0}
+    .dot-ok{background:var(--color-text-success)}
+    .dot-err{background:var(--color-text-danger)}
+    .done-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:5px 12px;border-radius:var(--border-radius-md);background:var(--color-background-success);color:var(--color-text-success);font-weight:500}
+    .error-box{font-size:12px;color:var(--color-text-danger);background:var(--color-background-danger);border:0.5px solid var(--color-border-danger);border-radius:var(--border-radius-md);padding:9px 12px}
+
+    .btn-stop{padding:4px 10px;font-size:11px;border-radius:4px;border:0.5px solid var(--color-border-danger);background:transparent;color:var(--color-text-danger);cursor:pointer}
+  </style>
+</head>
+<body>
+
+<nav class="topnav">
+  <a href="/" class="topnav-brand" style="text-decoration:none;display:flex;align-items:center;gap:8px">
+    <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="3" y="10" width="12" height="19" rx="6" fill="#2d7a5e" transform="rotate(-12 9 19)"/>
+      <rect x="14" y="3" width="14" height="13" rx="6" fill="#5cb87a"/>
+    </svg>
+    <span style="font-family:var(--font-sans);font-size:15px;font-weight:700;color:#1b6b45;letter-spacing:-0.2px">منصة التركات</span>
+  </a>
+  <a href="/" class="topnav-link">Dashboard</a>
+  <a href="/agents" class="topnav-link active">Agents</a>
+  <a href="/knowledge-base" class="topnav-link">Knowledge Center</a>
+  <div class="topnav-spacer"></div>
+  <span class="config-badge" id="config-badge">checking…</span>
+</nav>
+
+<div class="page">
+
+  <!-- ── Action cards ──────────────────────────────────────────────────────── -->
+  <div class="actions-grid">
+
+    <!-- Review User Story -->
+    <div class="action-card">
+      <div class="action-header">
+        <div class="action-icon icon-review">📋</div>
+        <div>
+          <div class="action-title">Review User Story</div>
+          <div class="action-desc">AI quality review — AC, edge cases, risks</div>
+        </div>
+      </div>
+      <div class="action-body">
+        <div>
+          <div class="input-label">Ticket Key</div>
+          <input class="form-input" id="review-key" placeholder="e.g. TAT-5516" onkeydown="if(event.key==='Enter') runReview()"/>
+        </div>
+        <button class="btn btn-review" id="btn-review" onclick="runReview()">Run Review</button>
+      </div>
+    </div>
+
+    <!-- Create Subtasks -->
+    <div class="action-card">
+      <div class="action-header">
+        <div class="action-icon icon-sub">✅</div>
+        <div>
+          <div class="action-title">Create Subtasks</div>
+          <div class="action-desc">Generate QA subtasks and link to story</div>
+        </div>
+      </div>
+      <div class="action-body">
+        <div>
+          <div class="input-label">Ticket Key(s) <span style="font-weight:400;text-transform:none;letter-spacing:0">(comma-separated)</span></div>
+          <input class="form-input" id="sub-keys" placeholder="e.g. TAT-5516, TAT-5517" onkeydown="if(event.key==='Enter') runSubtasks()"/>
+        </div>
+        <button class="btn btn-sub" id="btn-sub" onclick="runSubtasks()">Create Subtasks</button>
+      </div>
+    </div>
+
+    <!-- Prepare Testware -->
+    <div class="action-card">
+      <div class="action-header">
+        <div class="action-icon icon-tw">🧪</div>
+        <div>
+          <div class="action-title">Prepare Testware</div>
+          <div class="action-desc">Generate test cases, AIO artifacts, Playwright specs</div>
+        </div>
+      </div>
+      <div class="action-body">
+        <div>
+          <div class="input-label">Ticket Key</div>
+          <input class="form-input" id="tw-key" placeholder="e.g. TAT-5516"/>
+        </div>
+        <div>
+          <div class="input-label">AIO Cycle Name <span style="font-weight:400;text-transform:none;letter-spacing:0">(optional)</span></div>
+          <input class="form-input" id="tw-cycle" placeholder="e.g. squad-a-sprint-35" onkeydown="if(event.key==='Enter') runTestware()"/>
+        </div>
+        <button class="btn btn-tw" id="btn-tw" onclick="runTestware()">Prepare Testware</button>
+      </div>
+    </div>
+
+    <!-- Test Summary Report -->
+    <div class="action-card">
+      <div class="action-header">
+        <div class="action-icon icon-tsr">📊</div>
+        <div>
+          <div class="action-title">Test Summary Report</div>
+          <div class="action-desc">Cycle results, scope, issues & risks → Word + PDF</div>
+        </div>
+      </div>
+      <div class="action-body">
+        <div>
+          <div class="input-label">AIO Cycle Name</div>
+          <input class="form-input" id="tsr-cycle" placeholder="e.g. squad-a-sprint-35"/>
+        </div>
+        <div>
+          <div class="input-label">Epic / Story Key(s) <span style="font-weight:400;text-transform:none;letter-spacing:0">(comma-separated)</span></div>
+          <input class="form-input" id="tsr-keys" placeholder="e.g. TAT-6500 or TAT-6501, TAT-6502" onkeydown="if(event.key==='Enter') runTsrGather()"/>
+        </div>
+        <label class="check-row"><input type="checkbox" id="tsr-pull-aio" checked/> Pull execution counts from AIO cycle</label>
+        <button class="btn btn-tsr" id="btn-tsr" onclick="runTsrGather()">Gather Data</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Output panel ───────────────────────────────────────────────────────── -->
+  <div class="output-panel" id="output-panel" style="display:none">
+    <div class="panel-head">
+      <div class="panel-label">
+        <span id="panel-agent-tag" class="panel-agent-tag"></span>
+        <span id="panel-title" style="font-size:12px;color:var(--color-text-secondary)"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="status-row" id="panel-status"></div>
+        <button class="btn-stop" id="btn-stop" onclick="stopAgent()" style="display:none">&#x25A0; Stop</button>
+        <button class="panel-close" onclick="closePanel()">&#x2715;</button>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="log-box" id="panel-log" style="display:none"></div>
+      <div id="panel-result"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── Config badge ──────────────────────────────────────────────────────────────
+fetch('/api/admin/config-status').then(r=>r.json()).then(d=>{
+  const el = document.getElementById('config-badge');
+  if(d?.env){
+    const missing = Object.entries(d.env).filter(([,v])=>!v).length;
+    el.textContent = missing ? `${missing} env missing` : 'Ready';
+    el.className = 'config-badge' + (missing ? '' : ' ok');
+  }
+}).catch(()=>{});
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let _activeEs = null;
+let _activeJobId = null;
+
+// ── Panel ─────────────────────────────────────────────────────────────────────
+function openPanel(agent, title) {
+  if(_activeEs){ _activeEs.close(); _activeEs = null; }
+  _activeJobId = null;
+  document.getElementById('panel-agent-tag').textContent = agent;
+  document.getElementById('panel-title').textContent = title;
+  document.getElementById('panel-log').innerHTML = '';
+  document.getElementById('panel-log').style.display = 'none';
+  document.getElementById('panel-result').innerHTML = '';
+  document.getElementById('panel-status').innerHTML = '<span class="spinner"></span><span>Running…</span>';
+  document.getElementById('btn-stop').style.display = 'inline-flex';
+  document.getElementById('btn-stop').disabled = false;
+  document.getElementById('btn-stop').innerHTML = '&#x25A0; Stop';
+  document.getElementById('output-panel').style.display = 'block';
+  document.getElementById('output-panel').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function closePanel() {
+  if(_activeEs){ _activeEs.close(); _activeEs = null; }
+  document.getElementById('output-panel').style.display = 'none';
+}
+
+function panelDone(ok, msg, cancelled) {
+  document.getElementById('btn-stop').style.display = 'none';
+  _activeJobId = null;
+  document.getElementById('panel-status').innerHTML = cancelled
+    ? '<span class="dot" style="background:var(--color-text-warning)"></span><span>Stopped</span>'
+    : ok
+      ? '<span class="dot dot-ok"></span><span>Done</span>'
+      : '<span class="dot dot-err"></span><span>Failed</span>';
+  const formErr = document.getElementById('f-error');   // keep the test-summary form on failure
+  if(!ok && !cancelled && msg){
+    if(formErr) formErr.innerHTML = `<div class="error-box">${msg}</div>`;
+    else document.getElementById('panel-result').innerHTML = `<div class="error-box">${msg}</div>`;
+  }
+  if(cancelled)
+    document.getElementById('panel-result').innerHTML =
+      `<div style="font-size:12px;color:var(--color-text-warning);padding:4px 0">Agent stopped.</div>`;
+}
+
+async function stopAgent() {
+  if(!_activeJobId) return;
+  document.getElementById('btn-stop').disabled = true;
+  document.getElementById('btn-stop').textContent = 'Stopping…';
+  await fetch(`/api/agents/stop/${_activeJobId}`, {method:'POST'}).catch(()=>{});
+}
+
+function streamToPanel(jobId) {
+  _activeJobId = jobId;
+  const logEl = document.getElementById('panel-log');
+  logEl.style.display = 'block';
+  const es = new EventSource(`/api/agents/stream/${jobId}`);
+  _activeEs = es;
+  es.onmessage = e => {
+    const msg = JSON.parse(e.data);
+    if(msg.type === 'log'){
+      const line = document.createElement('div');
+      line.className = 'log-line';
+      line.textContent = msg.message;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    } else if(msg.type === 'done'){
+      es.close(); _activeEs = null;
+      handleDone(msg);
+    } else if(msg.type === 'error'){
+      es.close(); _activeEs = null;
+      panelDone(false, msg.message);
+    }
+  };
+  es.onerror = () => { es.close(); _activeEs = null; panelDone(false, 'Connection lost'); };
+}
+
+function handleDone(msg) {
+  if(msg.status === 'cancelled'){ panelDone(false, null, true); return; }
+  if(msg.status !== 'completed'){ panelDone(false, msg.error || 'Unknown error'); return; }
+  const res = msg.result || {};
+
+  if(res.tsr_prefill){
+    document.getElementById('panel-log').style.display = 'none';
+    renderTsrForm(res.tsr_prefill);
+    panelDone(true); return;
+  }
+
+  if(res.tsr_files){
+    document.getElementById('panel-log').style.display = 'none';
+    document.getElementById('tsr-links')?.remove();
+    document.getElementById('panel-result').insertAdjacentHTML('afterbegin',
+      `<div class="tsr-links" id="tsr-links">${res.tsr_files.map(f =>
+        `<a href="/api/agents/test-summary/download/${encodeURIComponent(f)}">⬇ ${esc(f)}</a>`).join('')}</div>`);
+    panelDone(true); return;
+  }
+
+  if(res.review){
+    document.getElementById('panel-log').style.display = 'none';
+    document.getElementById('panel-result').innerHTML =
+      `<div class="review-out">${marked.parse(res.review)}</div>`;
+    panelDone(true); return;
+  }
+
+  if(res.results){
+    document.getElementById('panel-log').style.display = 'none';
+    let html = '';
+    for(const [storyKey, subtasks] of Object.entries(res.results)){
+      html += `<div class="subtask-block"><div class="subtask-story-label">${storyKey}</div>`;
+      for(const [name, key] of Object.entries(subtasks)){
+        const isNew = key && !key.includes('ERR');
+        html += `<div class="subtask-row">
+          <span class="sub-key">${key}</span>
+          <span class="${isNew ? 'sub-name-new' : 'sub-name-exist'}">${name}</span>
+        </div>`;
+      }
+      html += '</div>';
+    }
+    document.getElementById('panel-result').innerHTML = html;
+    panelDone(true); return;
+  }
+
+  const issueKeys = Array.isArray(res.issues) ? res.issues.join(', ') : (res.issue_key || '');
+  document.getElementById('panel-result').innerHTML =
+    `<div class="done-chip">&#x2713; Complete${issueKeys ? ' — ' + issueKeys : ''}</div>`;
+  panelDone(true);
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+async function runReview() {
+  const key = document.getElementById('review-key').value.trim().toUpperCase();
+  if(!key){ document.getElementById('review-key').focus(); return; }
+  const btn = document.getElementById('btn-review');
+  btn.disabled = true;
+  openPanel('Review', key);
+  try {
+    const r = await fetch('/api/agents/review-story', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({issue_key: key}),
+    });
+    const data = await r.json();
+    if(!r.ok || data.error){ panelDone(false, data.error || r.statusText); return; }
+    streamToPanel(data.job_id);
+  } finally { btn.disabled = false; }
+}
+
+async function runSubtasks() {
+  const raw = document.getElementById('sub-keys').value.trim();
+  if(!raw){ document.getElementById('sub-keys').focus(); return; }
+  const keys = raw.toUpperCase();
+  const btn = document.getElementById('btn-sub');
+  btn.disabled = true;
+  openPanel('Subtasks', keys);
+  try {
+    const r = await fetch('/api/agents/create-subtasks', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({issue_keys: keys}),
+    });
+    const data = await r.json();
+    if(!r.ok || data.error){ panelDone(false, data.error || r.statusText); return; }
+    streamToPanel(data.job_id);
+  } finally { btn.disabled = false; }
+}
+
+async function runTestware() {
+  const key = document.getElementById('tw-key').value.trim().toUpperCase();
+  const cycle = document.getElementById('tw-cycle').value.trim();
+  if(!key){ document.getElementById('tw-key').focus(); return; }
+  const btn = document.getElementById('btn-tw');
+  btn.disabled = true;
+  openPanel('Testware', key + (cycle ? ` · ${cycle}` : ''));
+  try {
+    const r = await fetch('/api/agents/aio-testware', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({issue_key: key, cycle_name: cycle}),
+    });
+    const data = await r.json();
+    if(!r.ok || data.error){ panelDone(false, data.error || r.statusText); return; }
+    streamToPanel(data.job_id);
+  } finally { btn.disabled = false; }
+}
+
+// ── Test Summary Report ───────────────────────────────────────────────────────
+function esc(v){ return String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+let _tsr = null;   // last prefill, carries fields the form doesn't edit (epic, cycle id)
+
+async function runTsrGather() {
+  const keys = document.getElementById('tsr-keys').value.trim().toUpperCase();
+  const cycle = document.getElementById('tsr-cycle').value.trim();
+  const pullAio = document.getElementById('tsr-pull-aio').checked;
+  if(!keys){ document.getElementById('tsr-keys').focus(); return; }
+  if(pullAio && !cycle){ document.getElementById('tsr-cycle').focus(); return; }
+  const btn = document.getElementById('btn-tsr');
+  btn.disabled = true;
+  openPanel('Test Summary', keys + (cycle ? ` · ${cycle}` : ''));
+  try {
+    const r = await fetch('/api/agents/test-summary/gather', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({cycle_name: cycle, issue_keys: keys, pull_aio: pullAio}),
+    });
+    const data = await r.json();
+    if(!r.ok || data.error){ panelDone(false, data.error || r.statusText); return; }
+    streamToPanel(data.job_id);
+  } finally { btn.disabled = false; }
+}
+
+const COUNT_FIELDS = [['total','Total'],['passed','Passed'],['failed','Failed'],['blocked','Blocked'],['not_run','Not Run'],['in_progress','In Progress']];
+
+function tsrRow(kind, v = {}) {
+  if(kind === 'issue') return `<tr>
+    <td><input type="checkbox" class="tsr-inc" checked/></td>
+    <td><input class="form-input" data-f="key" value="${esc(v.key)}"/></td>
+    <td><input class="form-input" data-f="summary" value="${esc(v.summary)}"/></td>
+    <td><input class="form-input" data-f="severity" value="${esc(v.severity)}"/></td>
+    <td><input class="form-input" data-f="status" value="${esc(v.status)}"/></td></tr>`;
+  return `<tr>
+    <td><input type="checkbox" class="tsr-inc" checked/></td>
+    <td><input class="form-input" data-f="risk" value="${esc(v.risk)}"/></td>
+    <td><input class="form-input" data-f="impact" value="${esc(v.impact)}"/></td>
+    <td><input class="form-input" data-f="mitigation" value="${esc(v.mitigation)}"/></td></tr>`;
+}
+
+function tsrAddRow(kind) {
+  document.getElementById(kind === 'issue' ? 'tsr-issues' : 'tsr-risks').insertAdjacentHTML('beforeend', tsrRow(kind));
+}
+
+function renderTsrForm(p) {
+  _tsr = p;
+  const ex = p.execution || {};
+  const stories = (p.stories || []).map((s, i) => `<label class="check-row">
+      <input type="checkbox" class="tsr-story" data-i="${i}" checked/> <b>${esc(s.key)}</b> ${esc(s.summary)} <i>(${esc(s.status)})</i></label>`).join('')
+    || '<div class="tsr-note">No stories found.</div>';
+  document.getElementById('panel-result').innerHTML = `
+  <div class="tsr-form">
+    <div class="tsr-note">Review and complete every field — nothing below is generated unless it came from Jira, AIO, or the epic/story text.</div>
+
+    <div class="tsr-sec"><div class="tsr-sec-title">Report information</div>
+      <div class="tsr-grid">
+        <div><div class="input-label">Feature / Release</div><input class="form-input" id="f-feature" value="${esc(p.feature)}"/></div>
+        <div><div class="input-label">Test Cycle</div><input class="form-input" id="f-cycle" value="${esc(p.cycle?.name)}"/></div>
+        <div><div class="input-label">QA Owner(s) *</div><input class="form-input" id="f-owners" placeholder="comma-separated" value="${esc((p.qa_owners||[]).join(', '))}"/></div>
+        <div><div class="input-label">Prepared By</div><input class="form-input" id="f-prepared" placeholder="defaults to QA owners" value="${esc(p.prepared_by)}"/></div>
+        <div><div class="input-label">Start Date</div><input type="date" class="form-input" id="f-start" value="${esc(p.period?.start)}"/></div>
+        <div><div class="input-label">End Date</div><input type="date" class="form-input" id="f-end" value="${esc(p.period?.end)}"/></div>
+        <div><div class="input-label">Environment</div><input class="form-input" id="f-env" placeholder="e.g. Testing / SIT / UAT" value="${esc(p.environment)}"/></div>
+      </div>
+    </div>
+
+    <div class="tsr-sec"><div class="tsr-sec-title">Scope (drafted from epic / story descriptions — edit freely)</div>
+      ${p.epic?.key ? `<div style="font-size:12px">Epic: <b>${esc(p.epic.key)}</b> ${esc(p.epic.summary)}</div>` : ''}
+      <div><div class="input-label">Objective</div><textarea class="form-input" id="f-objective">${esc(p.objective)}</textarea></div>
+      <div><div class="input-label">In scope (one per line)</div><textarea class="form-input" id="f-in">${esc((p.scope?.in||[]).join('\n'))}</textarea></div>
+      <div><div class="input-label">Out of scope (one per line)</div><textarea class="form-input" id="f-out">${esc((p.scope?.out||[]).join('\n'))}</textarea></div>
+      <div class="input-label">Stories covered</div>${stories}
+    </div>
+
+    <div class="tsr-sec"><div class="tsr-sec-title">Test execution
+        <span style="display:flex;gap:6px;align-items:center">
+          <input class="form-input" id="f-aio-cycle" placeholder="AIO cycle name" style="width:180px" value="${esc(p.cycle?.name)}"/>
+          <button class="btn btn-ghost" onclick="tsrPullAio()">Pull from AIO</button>
+        </span></div>
+      <div class="tsr-note" id="f-aio-msg">${p.aio_error ? 'AIO: ' + esc(p.aio_error) + ' — enter counts manually or retry.' : ''}</div>
+      <div class="check-row">Source: <b id="f-source">${ex.source === 'aio' ? 'AIO cycle' : 'manual input'}</b></div>
+      <div class="tsr-grid">${COUNT_FIELDS.map(([k,l]) =>
+        `<div><div class="input-label">${l}</div><input type="number" min="0" class="form-input tsr-count" id="f-${k}" value="${ex.source === 'aio' ? esc(ex[k] ?? 0) : ''}" oninput="document.getElementById('f-source').textContent='manual input'"/></div>`).join('')}</div>
+    </div>
+
+    <div class="tsr-sec"><div class="tsr-sec-title">Known issues (open Jira bugs — untick to exclude) <button class="btn btn-ghost" onclick="tsrAddRow('issue')">+ Add issue</button></div>
+      <table class="tsr-table"><thead><tr><th></th><th>Key</th><th>Summary</th><th>Severity</th><th>Status</th></tr></thead>
+      <tbody id="tsr-issues">${(p.known_issues||[]).map(i => tsrRow('issue', i)).join('')}</tbody></table>
+    </div>
+
+    <div class="tsr-sec"><div class="tsr-sec-title">Risks <button class="btn btn-ghost" onclick="tsrAddRow('risk')">+ Add risk</button></div>
+      <table class="tsr-table"><thead><tr><th></th><th>Risk</th><th>Impact</th><th>Mitigation</th></tr></thead>
+      <tbody id="tsr-risks">${(p.risks||[]).map(r => tsrRow('risk', r)).join('')}</tbody></table>
+    </div>
+
+    <div class="tsr-sec"><div class="tsr-sec-title">Conclusion</div>
+      <div class="tsr-grid">
+        <div><div class="input-label">Recommendation *</div>
+          <select class="form-input" id="f-reco"><option value="">— select —</option><option>GO</option><option>CONDITIONAL GO</option><option>NO-GO</option></select></div>
+      </div>
+      <div><div class="input-label">Notes</div><textarea class="form-input" id="f-notes">${esc(p.conclusion?.notes)}</textarea></div>
+    </div>
+
+    <div id="f-error"></div>
+    <button class="btn btn-tsr" id="btn-tsr-gen" onclick="tsrGenerate()">Generate Word + PDF</button>
+  </div>`;
+}
+
+async function tsrPullAio() {
+  const name = document.getElementById('f-aio-cycle').value.trim();
+  const msg = document.getElementById('f-aio-msg');
+  if(!name){ document.getElementById('f-aio-cycle').focus(); return; }
+  msg.textContent = 'Pulling from AIO…';
+  try {
+    const d = await (await fetch(`/api/agents/cycle-stats?cycle_name=${encodeURIComponent(name)}`)).json();
+    if(d.error){ msg.textContent = 'AIO: ' + d.error; return; }
+    COUNT_FIELDS.forEach(([k]) => document.getElementById('f-' + k).value = d[k] ?? 0);
+    document.getElementById('f-source').textContent = 'AIO cycle';
+    _tsr.cycle = {name: d.cycle_title || name, id: d.cycle_id};
+    document.getElementById('f-cycle').value = _tsr.cycle.name;
+    msg.textContent = `Loaded from "${d.cycle_title || name}".`;
+  } catch(e) { msg.textContent = 'AIO request failed: ' + e; }
+}
+
+function tsrRows(id) {
+  return [...document.querySelectorAll(`#${id} tr`)]
+    .filter(tr => tr.querySelector('.tsr-inc').checked)
+    .map(tr => Object.fromEntries([...tr.querySelectorAll('[data-f]')].map(i => [i.dataset.f, i.value.trim()])))
+    .filter(o => Object.values(o).some(Boolean));
+}
+
+async function tsrGenerate() {
+  const v = id => document.getElementById(id).value.trim();
+  const lines = id => v(id).split('\n').map(x => x.trim()).filter(Boolean);
+  const owners = v('f-owners').split(',').map(x => x.trim()).filter(Boolean);
+  const reco = v('f-reco');
+  const missing = [];
+  if(!owners.length) missing.push('QA Owner(s)');
+  if(!reco) missing.push('Recommendation');
+  if(COUNT_FIELDS.every(([k]) => v('f-' + k) === '')) missing.push('Execution counts (enter or pull from AIO)');
+  const errEl = document.getElementById('f-error');
+  if(missing.length){ errEl.innerHTML = `<div class="error-box">Required: ${missing.join(', ')}</div>`; return; }
+  errEl.innerHTML = '';
+
+  const execution = {source: document.getElementById('f-source').textContent === 'AIO cycle' ? 'aio' : 'manual'};
+  COUNT_FIELDS.forEach(([k]) => execution[k] = parseInt(v('f-' + k) || '0', 10));
+  const cycleName = v('f-cycle');
+  const report = {
+    feature: v('f-feature'),
+    cycle: {name: cycleName, ...(_tsr.cycle?.id && _tsr.cycle?.name === cycleName ? {id: _tsr.cycle.id} : {})},
+    epic: _tsr.epic || {},
+    stories: [...document.querySelectorAll('.tsr-story')].filter(c => c.checked).map(c => _tsr.stories[+c.dataset.i]),
+    objective: v('f-objective'),
+    scope: {in: lines('f-in'), out: lines('f-out')},
+    qa_owners: owners,
+    prepared_by: v('f-prepared') || owners.join(', '),
+    period: {start: v('f-start'), end: v('f-end')},
+    environment: v('f-env'),
+    execution,
+    known_issues: tsrRows('tsr-issues'),
+    risks: tsrRows('tsr-risks'),
+    conclusion: {recommendation: reco, notes: v('f-notes')},
+    date: _tsr.date,
+  };
+
+  const btn = document.getElementById('btn-tsr-gen');
+  btn.disabled = true;
+  document.getElementById('panel-status').innerHTML = '<span class="spinner"></span><span>Generating…</span>';
+  try {
+    const r = await fetch('/api/agents/test-summary/generate', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({report}),
+    });
+    const data = await r.json();
+    if(!r.ok || data.error){ panelDone(false, data.error || r.statusText); return; }
+    document.getElementById('panel-log').innerHTML = '';
+    streamToPanel(data.job_id);
+  } finally { btn.disabled = false; }
+}
+</script>
+</body>
+</html>

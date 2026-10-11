@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Knowledge Center · QA Platform</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+  <script src="/static/nav.js" defer></script>
+  <style>
+    /* ── Layout ── */
+    .kc-layout {
+      display: flex;
+      gap: 0;
+      min-height: calc(100vh - 66px);
+    }
+
+    /* ── Sidebar ── */
+    .kc-sidebar {
+      width: 200px;
+      flex-shrink: 0;
+      background: var(--color-background-primary);
+      border-right: 0.5px solid var(--color-border-tertiary);
+      padding: 20px 0;
+      position: sticky;
+      top: 66px;
+      height: calc(100vh - 66px);
+      overflow-y: auto;
+    }
+    .kc-sidebar-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      color: var(--color-text-secondary);
+      padding: 0 16px 8px;
+      text-transform: uppercase;
+    }
+    .kc-nav-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      width: 100%;
+      padding: 9px 16px;
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      text-align: left;
+      border-left: 2px solid transparent;
+      transition: background 0.1s, color 0.1s;
+    }
+    .kc-nav-item:hover { background: var(--color-background-secondary); color: var(--color-text-primary); }
+    .kc-nav-item.active {
+      background: var(--color-background-info);
+      color: #1b6b45;
+      border-left-color: #1b6b45;
+      font-weight: 500;
+    }
+    .kc-nav-item svg { flex-shrink: 0; opacity: 0.7; }
+    .kc-nav-item.active svg { opacity: 1; }
+
+    /* ── Main content ── */
+    .kc-main { flex: 1; padding: 20px 24px; overflow-y: auto; }
+
+    /* ── Section header ── */
+    .section-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .section-header h2 { font-size: 15px; font-weight: 500; }
+    .section-header p { font-size: 12px; color: var(--color-text-secondary); margin-top: 2px; }
+    .section-actions { display: flex; gap: 6px; align-items: center; }
+
+    /* ── Sub-section tabs (Confluence) ── */
+    .sub-tabs {
+      display: flex;
+      gap: 2px;
+      margin-bottom: 16px;
+      border-bottom: 0.5px solid var(--color-border-tertiary);
+    }
+    .sub-tab {
+      padding: 7px 14px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      margin-bottom: -1px;
+      transition: color 0.1s;
+    }
+    .sub-tab:hover { color: var(--color-text-primary); }
+    .sub-tab.active { color: #1b6b45; border-bottom-color: #1b6b45; }
+
+    /* ── Knowledge grid ── */
+    .kb-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 12px;
+    }
+    .kb-card {
+      background: var(--color-background-primary);
+      border: 0.5px solid var(--color-border-tertiary);
+      border-radius: var(--border-radius-lg);
+      padding: 14px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .kb-title { font-size: 13px; font-weight: 500; color: var(--color-text-primary); }
+    .kb-content { font-size: 12px; color: var(--color-text-secondary); white-space: pre-wrap; flex: 1; }
+    .kb-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+    .kb-tag { font-size: 10px; padding: 2px 6px; border-radius: 3px; background: var(--color-background-info); color: #1b6b45; }
+    .kb-actions { display: flex; gap: 6px; padding-top: 8px; border-top: 0.5px solid var(--color-border-tertiary); }
+
+    /* ── Link list ── */
+    .link-list { display: flex; flex-direction: column; gap: 10px; }
+    .link-card {
+      background: var(--color-background-primary);
+      border: 0.5px solid var(--color-border-tertiary);
+      border-radius: var(--border-radius-lg);
+      padding: 14px 16px;
+      display: flex; align-items: flex-start; gap: 12px;
+    }
+    .link-icon {
+      width: 34px; height: 34px; flex-shrink: 0;
+      border-radius: var(--border-radius-md);
+      background: var(--color-background-info);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .link-body { flex: 1; min-width: 0; }
+    .link-title { font-size: 13px; font-weight: 500; color: var(--color-text-primary); }
+    .link-url {
+      font-size: 11px; color: #1b6b45; margin-top: 2px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      text-decoration: none; display: block;
+    }
+    .link-url:hover { text-decoration: underline; }
+    .link-desc { font-size: 12px; color: var(--color-text-secondary); margin-top: 4px; }
+    .link-meta { font-size: 10px; color: var(--color-text-secondary); margin-top: 4px; }
+    .link-badge {
+      font-size: 10px; padding: 2px 7px; border-radius: 3px;
+      background: var(--color-background-secondary);
+      color: var(--color-text-secondary);
+      display: inline-block; margin-top: 4px;
+    }
+
+    /* ── Buttons ── */
+    .btn {
+      font-size: 11px; padding: 4px 10px;
+      border-radius: var(--border-radius-sm);
+      border: 0.5px solid var(--color-border-secondary);
+      background: transparent; color: var(--color-text-secondary);
+      cursor: pointer; white-space: nowrap;
+    }
+    .btn:hover { background: var(--color-background-secondary); color: var(--color-text-primary); }
+    .btn.danger:hover { border-color: var(--color-border-danger); color: var(--color-text-danger); }
+    .btn.primary { border-color: var(--color-border-info); color: #1b6b45; }
+    .btn.primary:hover { background: var(--color-background-info); }
+
+    /* ── Modal ── */
+    .modal-backdrop {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.55); z-index: 200;
+      align-items: center; justify-content: center;
+    }
+    .modal-backdrop.show { display: flex; }
+    .modal {
+      background: var(--color-background-primary);
+      border: 0.5px solid var(--color-border-secondary);
+      border-radius: var(--border-radius-lg);
+      width: 520px; max-width: 95vw;
+      padding: 20px; display: flex; flex-direction: column; gap: 12px;
+    }
+    .modal h3 { font-size: 15px; font-weight: 500; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    .form-label { font-size: 11px; color: var(--color-text-secondary); }
+    .form-input, .form-textarea {
+      background: var(--color-background-secondary);
+      border: 0.5px solid var(--color-border-secondary);
+      border-radius: var(--border-radius-sm);
+      color: var(--color-text-primary);
+      font-family: var(--font-sans); font-size: 13px;
+      padding: 8px 10px; outline: none;
+    }
+    .form-input:focus, .form-textarea:focus { border-color: var(--color-border-info); }
+    .form-textarea { resize: vertical; min-height: 80px; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 8px; }
+
+    /* ── Empty / loading states ── */
+    .empty-state {
+      text-align: center; padding: 60px 0;
+      color: var(--color-text-secondary); font-size: 13px;
+    }
+    .empty-state p { margin-top: 8px; font-size: 12px; }
+
+    /* ── Sidebar sub-nav items ── */
+    .kc-subnav-item {
+      padding-left: 36px;
+      font-size: 12px;
+    }
+    .kc-subnav-item.active {
+      background: var(--color-background-info);
+      color: #1b6b45;
+      border-left-color: #1b6b45;
+      font-weight: 500;
+    }
+
+    /* ── Postman upload zone ── */
+    .upload-zone {
+      border: 1.5px dashed var(--color-border-secondary);
+      border-radius: var(--border-radius-lg);
+      padding: 40px 24px;
+      text-align: center;
+      color: var(--color-text-secondary);
+      font-size: 13px;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+    }
+    .upload-zone:hover { border-color: #1b6b45; background: var(--color-background-info); }
+    .upload-zone svg { margin-bottom: 10px; opacity: .5; }
+    .upload-zone p { margin-top: 6px; font-size: 12px; }
+
+    /* ── Postman collection tree ── */
+    .pm-tree { margin-top: 10px; border-top: 0.5px solid var(--color-border-tertiary); padding-top: 8px; }
+    .pm-folder { margin-bottom: 2px; }
+    .pm-folder > summary {
+      list-style: none; display: flex; align-items: center; gap: 6px;
+      padding: 4px 6px; border-radius: 4px; cursor: pointer;
+      font-size: 12px; font-weight: 500; color: var(--color-text-primary);
+      user-select: none;
+    }
+    .pm-folder > summary:hover { background: var(--color-background-secondary); }
+    .pm-folder > summary::before { content: '▶'; font-size: 8px; color: var(--color-text-secondary); transition: transform .15s; }
+    .pm-folder[open] > summary::before { transform: rotate(90deg); }
+    .pm-folder-body { padding-left: 18px; }
+    .pm-request {
+      display: flex; align-items: center; gap: 7px;
+      padding: 3px 6px; border-radius: 4px; font-size: 12px;
+      color: var(--color-text-secondary);
+    }
+    .pm-request:hover { background: var(--color-background-secondary); color: var(--color-text-primary); }
+    .pm-method {
+      font-size: 10px; font-weight: 600; font-family: var(--font-mono);
+      padding: 1px 5px; border-radius: 3px; min-width: 38px; text-align: center;
+    }
+    .pm-get    { background: #d4edda; color: #1b6b45; }
+    .pm-post   { background: #dbeafe; color: #1e4fa0; }
+    .pm-put    { background: #fef3c7; color: #92600a; }
+    .pm-delete { background: #fee2e2; color: #b91c1c; }
+    .pm-patch  { background: #ede9fe; color: #6d28d9; }
+    .pm-other  { background: var(--color-background-secondary); color: var(--color-text-secondary); }
+  </style>
+</head>
+<body>
+
+<nav class="topnav">
+  <a href="/" class="topnav-brand" style="text-decoration:none;display:flex;align-items:center;gap:8px">
+    <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="3" y="10" width="12" height="19" rx="6" fill="#2d7a5e" transform="rotate(-12 9 19)"/>
+      <rect x="14" y="3" width="14" height="13" rx="6" fill="#5cb87a"/>
+    </svg>
+    <span style="font-family:var(--font-sans);font-size:15px;font-weight:700;color:#1b6b45;letter-spacing:-0.2px">منصة التركات</span>
+  </a>
+  <a href="/" class="topnav-link">Dashboard</a>
+  <a href="/agents" class="topnav-link">Agents</a>
+  <a href="/knowledge-base" class="topnav-link active">Knowledge Center</a>
+  <div class="topnav-spacer"></div>
+</nav>
+
+<div class="kc-layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="kc-sidebar">
+    <div class="kc-sidebar-label">Knowledge Center</div>
+
+    <button class="kc-nav-item active" onclick="switchSection('knowledge')" id="nav-knowledge">
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+        <path d="M2 2h11v11H2V2z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+        <path d="M5 5h5M5 7.5h5M5 10h3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+      </svg>
+      Knowledge Entries
+    </button>
+
+    <button class="kc-nav-item" onclick="switchSection('postman')" id="nav-postman">
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+        <circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor" stroke-width="1.2"/>
+        <path d="M5 7.5h5M9.5 5.5l2 2-2 2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      Postman Collections
+    </button>
+
+    <button class="kc-nav-item" onclick="switchSection('confluence')" id="nav-confluence">
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+        <ellipse cx="7.5" cy="7.5" rx="5.5" ry="5.5" stroke="currentColor" stroke-width="1.2"/>
+        <line x1="7.5" y1="2" x2="7.5" y2="13" stroke="currentColor" stroke-width="1.2"/>
+        <path d="M2.5 5.5h10M2.5 9.5h10" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+      </svg>
+      Confluence Pages
+    </button>
+
+    <div id="confluence-subnav" style="display:none">
+      <button class="kc-nav-item kc-subnav-item active" onclick="switchConfluenceTab('inheritance')" id="nav-ctab-inheritance">
+        Inheritance
+      </button>
+      <button class="kc-nav-item kc-subnav-item" onclick="switchConfluenceTab('estate-list')" id="nav-ctab-estate-list">
+        E-State List
+      </button>
+      <button class="kc-nav-item kc-subnav-item" onclick="switchConfluenceTab('estate-division')" id="nav-ctab-estate-division">
+        E-State Division
+      </button>
+    </div>
+  </aside>
+
+  <!-- ── Main content ── -->
+  <main class="kc-main">
+
+    <!-- Knowledge Entries -->
+    <div id="section-knowledge">
+      <div class="section-header">
+        <div>
+          <h2>Knowledge Entries</h2>
+          <p>Business context that Claude uses when generating test cases</p>
+        </div>
+        <button class="btn primary" onclick="openKBModal()">+ Add entry</button>
+      </div>
+      <div id="kb-container"><div class="empty-state">Loading…</div></div>
+    </div>
+
+    <!-- Postman Collections -->
+    <div id="section-postman" hidden>
+      <div class="section-header">
+        <div>
+          <h2>Postman Collections</h2>
+          <p>API collections for reference during testing</p>
+        </div>
+        <div class="section-actions">
+          <button class="btn primary" onclick="document.getElementById('import-file').click()">↑ Upload from device</button>
+          <button class="btn" onclick="exportPostman()">↓ Export</button>
+          <button class="btn" onclick="openLinkModal('postman')">+ Add by URL</button>
+          <input type="file" id="import-file" accept=".json" style="display:none" onchange="importPostmanFile(this)"/>
+        </div>
+      </div>
+      <div id="postman-container"><div class="empty-state">Loading…</div></div>
+    </div>
+
+    <!-- Confluence Pages -->
+    <div id="section-confluence" hidden>
+      <div class="section-header">
+        <div>
+          <h2>Confluence Pages</h2>
+          <p>Documentation pages for reference during testing</p>
+        </div>
+        <button class="btn primary" onclick="openLinkModal('confluence')">+ Add page</button>
+      </div>
+
+      <div style="font-size:11px;font-weight:500;color:var(--color-text-secondary);letter-spacing:.04em;text-transform:uppercase;margin-bottom:12px" id="confluence-section-label">Inheritance</div>
+
+      <div id="confluence-container"><div class="empty-state">Loading…</div></div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Knowledge entry modal -->
+<div class="modal-backdrop" id="kb-modal">
+  <div class="modal">
+    <h3 id="kb-modal-title">Add knowledge entry</h3>
+    <div class="form-group">
+      <label class="form-label">Title</label>
+      <input class="form-input" id="field-title" placeholder="e.g. Beneficiary types in inheritance flow"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Content</label>
+      <textarea class="form-textarea" id="field-content"
+        placeholder="Describe the business rule, workflow, or context Claude should know about…"></textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Tags (comma-separated)</label>
+      <input class="form-input" id="field-tags" placeholder="inheritance, beneficiaries, identity"/>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeKBModal()">Cancel</button>
+      <button class="btn primary" onclick="saveKBEntry()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Link modal (Postman / Confluence) -->
+<div class="modal-backdrop" id="link-modal">
+  <div class="modal">
+    <h3 id="link-modal-title">Add link</h3>
+    <input type="hidden" id="link-source-type"/>
+    <input type="hidden" id="link-sub-section"/>
+    <div class="form-group">
+      <label class="form-label">Title</label>
+      <input class="form-input" id="link-title" placeholder="e.g. Inheritance API Collection"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">URL <span style="color:var(--color-text-secondary);font-weight:400">(optional for imported files)</span></label>
+      <input class="form-input" id="link-url" type="url" placeholder="https://…"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description (optional)</label>
+      <textarea class="form-textarea" id="link-desc"
+        placeholder="Brief description of what this covers…"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeLinkModal()">Cancel</button>
+      <button class="btn primary" onclick="saveLink()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let editingId = null;
+let activeSection = 'knowledge';
+let activeConfluenceTab = 'inheritance';
+let _postmanData = {};
+
+const CONFLUENCE_TABS = ['inheritance', 'estate-list', 'estate-division'];
+
+// ── Section switching ─────────────────────────────────────────────────────────
+
+function switchSection(name) {
+  ['knowledge', 'postman', 'confluence'].forEach(s => {
+    document.getElementById('section-' + s).hidden = (s !== name);
+    document.getElementById('nav-' + s).classList.toggle('active', s === name);
+  });
+  document.getElementById('confluence-subnav').style.display = name === 'confluence' ? 'block' : 'none';
+  activeSection = name;
+  if (name === 'postman') loadLinks('postman');
+  if (name === 'confluence') loadLinks('confluence', activeConfluenceTab);
+}
+
+// ── Confluence sub-tabs ───────────────────────────────────────────────────────
+
+function switchConfluenceTab(tab) {
+  CONFLUENCE_TABS.forEach(t => {
+    document.getElementById('nav-ctab-' + t).classList.toggle('active', t === tab);
+  });
+  activeConfluenceTab = tab;
+  document.getElementById('confluence-section-label').textContent = tabDisplayName(tab);
+  loadLinks('confluence', tab);
+}
+
+// ── Knowledge entries ─────────────────────────────────────────────────────────
+
+async function loadEntries() {
+  const entries = await fetch(`${API}/api/knowledge`).then(r => r.json());
+  renderEntries(entries);
+}
+
+function renderEntries(entries) {
+  const container = document.getElementById('kb-container');
+  if (!entries.length) {
+    container.innerHTML = `<div class="empty-state">No entries yet.<p>Add business context so Claude writes better, domain-specific test cases.</p></div>`;
+    return;
+  }
+  container.innerHTML = `<div class="kb-grid">${entries.map(kbCard).join('')}</div>`;
+}
+
+function kbCard(e) {
+  const tags = e.tags ? e.tags.split(',').map(t => t.trim()).filter(Boolean)
+    .map(t => `<span class="kb-tag">${esc(t)}</span>`).join('') : '';
+  return `
+    <div class="kb-card">
+      <div class="kb-title">${esc(e.title)}</div>
+      <div class="kb-content">${esc(e.content)}</div>
+      ${tags ? `<div class="kb-tags">${tags}</div>` : ''}
+      <div style="font-size:10px;color:var(--color-text-secondary)">${e.updated_at?.slice(0,16) || ''}</div>
+      <div class="kb-actions">
+        <button class="btn" onclick="editKBEntry(${e.id})">Edit</button>
+        <button class="btn danger" onclick="deleteKBEntry(${e.id})">Delete</button>
+      </div>
+    </div>`;
+}
+
+function openKBModal(entry = null) {
+  editingId = entry ? entry.id : null;
+  document.getElementById('kb-modal-title').textContent = entry ? 'Edit entry' : 'Add knowledge entry';
+  document.getElementById('field-title').value = entry?.title || '';
+  document.getElementById('field-content').value = entry?.content || '';
+  document.getElementById('field-tags').value = entry?.tags || '';
+  document.getElementById('kb-modal').classList.add('show');
+  document.getElementById('field-title').focus();
+}
+
+function closeKBModal() {
+  document.getElementById('kb-modal').classList.remove('show');
+  editingId = null;
+}
+
+async function saveKBEntry() {
+  const body = {
+    title:   document.getElementById('field-title').value.trim(),
+    content: document.getElementById('field-content').value.trim(),
+    tags:    document.getElementById('field-tags').value.trim(),
+  };
+  if (!body.title || !body.content) { alert('Title and content are required.'); return; }
+  const url    = editingId ? `${API}/api/knowledge/${editingId}` : `${API}/api/knowledge`;
+  const method = editingId ? 'PUT' : 'POST';
+  await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  closeKBModal();
+  loadEntries();
+}
+
+async function editKBEntry(id) {
+  const entries = await fetch(`${API}/api/knowledge`).then(r => r.json());
+  const entry = entries.find(e => e.id === id);
+  if (entry) openKBModal(entry);
+}
+
+async function deleteKBEntry(id) {
+  if (!confirm('Delete this knowledge entry?')) return;
+  await fetch(`${API}/api/knowledge/${id}`, { method: 'DELETE' });
+  loadEntries();
+}
+
+// ── Links (Postman / Confluence) ──────────────────────────────────────────────
+
+async function loadLinks(type, subSection = '') {
+  const containerId = type + '-container';
+  document.getElementById(containerId).innerHTML = `<div class="empty-state">Loading…</div>`;
+  const params = new URLSearchParams({ type });
+  if (subSection) params.set('sub_section', subSection);
+  const links = await fetch(`${API}/api/knowledge/links?${params}`).then(r => r.json());
+  renderLinks(type, links, subSection);
+}
+
+function renderLinks(type, links, subSection) {
+  const container = document.getElementById(type + '-container');
+  if (!links.length) {
+    if (type === 'postman') {
+      container.innerHTML = `
+        <div class="upload-zone" onclick="document.getElementById('import-file').click()">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 16V8M12 8l-3 3M12 8l3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M3 15v3a2 2 0 002 2h14a2 2 0 002-2v-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          <div style="font-weight:500;color:var(--color-text-primary)">Upload a Postman collection</div>
+          <p>Click to browse for a <strong>.json</strong> file exported from Postman</p>
+        </div>`;
+    } else {
+      const label = 'page';
+      container.innerHTML = `<div class="empty-state">No ${label}s added yet.<p>Add a Confluence page link to keep your team's references in one place.</p></div>`;
+    }
+    return;
+  }
+  if (type === 'postman') {
+    links.forEach(l => {
+      if (l.collection_json) {
+        try { _postmanData[l.id] = JSON.parse(l.collection_json); } catch {}
+      }
+    });
+  }
+  container.innerHTML = `<div class="link-list">${links.map(l => linkCard(l, type)).join('')}</div>`;
+}
+
+function linkCard(l, type) {
+  const icon = type === 'postman'
+    ? `<svg width="18" height="18" viewBox="0 0 15 15" fill="none"><circle cx="7.5" cy="7.5" r="5.5" stroke="#1b6b45" stroke-width="1.4"/><path d="M5 7.5h5M9.5 5.5l2 2-2 2" stroke="#1b6b45" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+    : `<svg width="18" height="18" viewBox="0 0 15 15" fill="none"><ellipse cx="7.5" cy="7.5" rx="5.5" ry="5.5" stroke="#1b6b45" stroke-width="1.3"/><line x1="7.5" y1="2" x2="7.5" y2="13" stroke="#1b6b45" stroke-width="1.2"/><path d="M2.5 5.5h10M2.5 9.5h10" stroke="#1b6b45" stroke-width="1.1" stroke-linecap="round"/></svg>`;
+
+  const urlLine = l.url
+    ? `<a class="link-url" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.url)}</a>`
+    : (type === 'postman' ? '' : `<span class="link-url" style="color:var(--color-text-secondary);cursor:default">No URL</span>`);
+
+  const subBadge = l.sub_section ? `<span class="link-badge">${esc(l.sub_section)}</span>` : '';
+  const tree = type === 'postman' && _postmanData[l.id] ? renderPostmanTree(_postmanData[l.id]) : '';
+  const dlBtn = type === 'postman' && _postmanData[l.id]
+    ? `<button class="btn primary" style="flex-shrink:0;align-self:flex-start" onclick="downloadPostmanCollection(${l.id})">↓ Download</button>`
+    : '';
+
+  return `
+    <div class="link-card">
+      <div class="link-icon">${icon}</div>
+      <div class="link-body">
+        <div class="link-title">${esc(l.title)}</div>
+        ${urlLine}
+        ${l.description ? `<div class="link-desc">${esc(l.description)}</div>` : ''}
+        ${subBadge}
+        <div class="link-meta">${l.created_at?.slice(0,16) || ''}</div>
+        ${tree}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;align-self:flex-start">
+        ${dlBtn}
+        <button class="btn danger" onclick="deleteLink(${l.id},'${type}')">Delete</button>
+      </div>
+    </div>`;
+}
+
+function openLinkModal(type) {
+  const subSection = type === 'confluence' ? activeConfluenceTab : '';
+  document.getElementById('link-source-type').value = type;
+  document.getElementById('link-sub-section').value = subSection;
+  const tabLabel = subSection ? ` · ${tabDisplayName(subSection)}` : '';
+  document.getElementById('link-modal-title').textContent =
+    type === 'postman' ? 'Add Postman collection' : `Add Confluence page${tabLabel}`;
+  document.getElementById('link-title').value = '';
+  document.getElementById('link-url').value = '';
+  document.getElementById('link-desc').value = '';
+  document.getElementById('link-modal').classList.add('show');
+  document.getElementById('link-title').focus();
+}
+
+function closeLinkModal() {
+  document.getElementById('link-modal').classList.remove('show');
+}
+
+async function saveLink() {
+  const type = document.getElementById('link-source-type').value;
+  const body = {
+    title:       document.getElementById('link-title').value.trim(),
+    url:         document.getElementById('link-url').value.trim(),
+    description: document.getElementById('link-desc').value.trim(),
+    source_type: type,
+    sub_section: document.getElementById('link-sub-section').value,
+  };
+  if (!body.title) { alert('Title is required.'); return; }
+  await fetch(`${API}/api/knowledge/links`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body),
+  });
+  closeLinkModal();
+  if (type === 'confluence') loadLinks('confluence', activeConfluenceTab);
+  else loadLinks('postman');
+}
+
+async function deleteLink(id, type) {
+  if (!confirm('Remove this link?')) return;
+  await fetch(`${API}/api/knowledge/links/${id}`, { method: 'DELETE' });
+  if (type === 'confluence') loadLinks('confluence', activeConfluenceTab);
+  else loadLinks('postman');
+}
+
+// ── Postman import / export ───────────────────────────────────────────────────
+
+function importPostmanFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async e => {
+    try {
+      const json = JSON.parse(e.target.result);
+      const name = json?.info?.name || file.name.replace(/\.json$/, '');
+      const desc = (json?.info?.description || '').toString().slice(0, 200);
+      const body = {
+        title:           name,
+        url:             '',
+        description:     desc,
+        source_type:     'postman',
+        sub_section:     '',
+        collection_json: JSON.stringify(json),
+      };
+      await fetch(`${API}/api/knowledge/links`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(body),
+      });
+      loadLinks('postman');
+    } catch {
+      alert('Could not parse Postman collection. Make sure it is a valid JSON file.');
+    }
+    input.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function renderPostmanTree(json) {
+  if (!json?.item?.length) return '';
+  return `<div class="pm-tree">${renderPmItems(json.item)}</div>`;
+}
+
+function renderPmItems(items) {
+  return items.map(item => {
+    if (Array.isArray(item.item)) {
+      const count = item.item.length;
+      return `<details class="pm-folder"><summary>${esc(item.name)}<span style="font-size:10px;color:var(--color-text-secondary);margin-left:6px">${count} item${count !== 1 ? 's' : ''}</span></summary><div class="pm-folder-body">${renderPmItems(item.item)}</div></details>`;
+    }
+    const method = (item.request?.method || 'GET').toUpperCase();
+    const cls = {GET:'pm-get',POST:'pm-post',PUT:'pm-put',DELETE:'pm-delete',PATCH:'pm-patch'}[method] || 'pm-other';
+    return `<div class="pm-request"><span class="pm-method ${cls}">${method}</span><span>${esc(item.name)}</span></div>`;
+  }).join('');
+}
+
+function downloadPostmanCollection(id) {
+  const json = _postmanData[id];
+  if (!json) return;
+  const blob = new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (json?.info?.name || 'collection').replace(/[^a-z0-9_\-]/gi, '_') + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function exportPostman() {
+  const links = await fetch(`${API}/api/knowledge/links?type=postman`).then(r => r.json());
+  if (!links.length) { alert('No Postman collections to export.'); return; }
+  const blob = new Blob([JSON.stringify(links, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'postman-collections.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function tabDisplayName(tab) {
+  return { 'inheritance': 'Inheritance', 'estate-list': 'E-State List', 'estate-division': 'E-State Division' }[tab] || tab;
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+document.getElementById('kb-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('kb-modal')) closeKBModal();
+});
+document.getElementById('link-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('link-modal')) closeLinkModal();
+});
+
+loadEntries();
+</script>
+</body>
+</html>

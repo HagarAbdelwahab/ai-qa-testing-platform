@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>QA Command Center</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="/static/style.css"/>
+  <script src="/static/nav.js" defer></script>
+  <style>
+    /* ── Dashboard layout (from original design) ───────────────────────── */
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:var(--font-sans)}
+    .dash{display:grid;grid-template-columns:260px 1fr;gap:12px;padding:12px;min-height:600px;align-items:start}
+    .sidebar{display:flex;flex-direction:column;gap:10px;position:sticky;top:66px;align-self:start}
+    .main{display:flex;flex-direction:column;gap:10px}
+    .card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:14px}
+    .card-header{font-size:11px;font-weight:500;color:var(--color-text-secondary);letter-spacing:.05em;text-transform:uppercase;margin-bottom:10px}
+    .metric-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;position:sticky;top:66px;z-index:10;background:var(--color-background-page);padding:6px 0;margin-bottom:2px}
+    .metric{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px 12px}
+    .metric-label{font-size:11px;color:var(--color-text-secondary);margin-bottom:4px}
+    .metric-val{font-size:22px;font-weight:500;color:var(--color-text-primary)}
+    .metric-val.green{color:var(--color-text-success)}
+    .metric-val.red{color:var(--color-text-danger)}
+    .metric-val.amber{color:var(--color-text-warning)}
+    .top-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .ticket-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--color-border-tertiary);cursor:pointer}
+    .ticket-row:last-child{border-bottom:none}
+    .ticket-id{font-size:11px;font-family:var(--font-mono);color:var(--color-text-info);min-width:70px}
+    .ticket-title{font-size:13px;color:var(--color-text-primary);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .badge{font-size:10px;padding:2px 7px;border-radius:4px;font-weight:500}
+    .b-critical{background:var(--color-background-danger);color:var(--color-text-danger)}
+    .b-high{background:var(--color-background-warning);color:var(--color-text-warning)}
+    .b-medium{background:var(--color-background-info);color:var(--color-text-info)}
+    .b-low{background:var(--color-background-secondary);color:var(--color-text-secondary)}
+    .b-ready{background:var(--color-background-success);color:var(--color-text-success)}
+    .b-pending{background:var(--color-background-warning);color:var(--color-text-warning)}
+    .b-progress{background:var(--color-background-info);color:var(--color-text-info)}
+    .agent-btn{font-size:11px;padding:5px 13px;border-radius:10px;border:1px solid #daeae0;background:#ffffff;color:#1b6b45;cursor:pointer;white-space:nowrap;font-weight:500;box-shadow:0 1px 3px rgba(27,107,69,0.07);transition:background .15s,border-color .15s}
+    .agent-btn:hover{background:#f4f9f6;border-color:#b8d9c5}
+    .member-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--color-border-tertiary)}
+    .member-row:last-child{border-bottom:none}
+    @keyframes avatar-glow{0%,100%{box-shadow:0 0 0 2px var(--ag,#1a73e8),0 2px 8px rgba(0,0,0,0.15)}50%{box-shadow:0 0 0 3.5px var(--ag,#1a73e8),0 4px 14px rgba(0,0,0,0.22)}}
+    .avatar{width:36px;height:36px;border-radius:50%;flex-shrink:0;object-fit:cover;animation:avatar-glow 2.8s ease-in-out infinite;background:var(--color-background-secondary)}
+    .member-name{font-size:12px;color:var(--color-text-primary);min-width:62px}
+    .bar-wrap{flex:1;background:var(--color-background-secondary);border-radius:4px;height:6px;overflow:hidden}
+    .bar-fill{height:6px;border-radius:4px;background:var(--color-background-info)}
+    .bar-fill.done{background:var(--color-background-success)}
+    .member-stat{font-size:11px;color:var(--color-text-secondary);min-width:40px;text-align:right}
+    .sprint-arc{display:flex;align-items:center;justify-content:center;padding:8px 0 4px}
+    .legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+    .leg-item{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--color-text-secondary)}
+    .leg-dot{width:8px;height:8px;border-radius:2px}
+    .nav-item{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:var(--border-radius-md);cursor:pointer;font-size:13px;color:var(--color-text-secondary)}
+    .nav-item:hover,.nav-item.active{background:var(--color-background-secondary);color:var(--color-text-primary)}
+    .nav-dot{width:6px;height:6px;border-radius:50%}
+    .status-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:12px;border-bottom:0.5px solid var(--color-border-tertiary)}
+    .status-row:last-child{border-bottom:none}
+    .action-btn{width:100%;padding:12px 16px;border-radius:14px;border:1px solid #daeae0;background:#ffffff;color:#1b6b45;cursor:pointer;font-size:13px;font-weight:500;text-align:left;margin-bottom:8px;display:flex;align-items:center;gap:8px;box-shadow:0 1px 3px rgba(27,107,69,0.07);transition:background .15s,border-color .15s}
+    .action-btn:hover{background:#f4f9f6;border-color:#b8d9c5}
+    .action-btn.primary{border-color:#1b6b45;color:#1b6b45;font-weight:600}
+    .action-btn:disabled{opacity:.45;cursor:not-allowed}
+
+    /* ── Agent / kickoff overlays ───────────────────────────────────────── */
+    .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);align-items:flex-start;justify-content:center;padding:60px 16px;z-index:200}
+    .overlay.show{display:flex}
+    .modal{background:var(--color-background-primary);border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-lg);width:100%;max-width:500px;overflow:hidden}
+    .modal-header{padding:12px 16px;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;justify-content:space-between;align-items:flex-start}
+    .modal-tag{font-size:10px;color:var(--color-text-info);font-family:var(--font-mono);margin-bottom:2px}
+    .modal-title{font-size:14px;font-weight:500;color:var(--color-text-primary)}
+    .close-btn{background:none;border:none;font-size:18px;color:var(--color-text-secondary);cursor:pointer;line-height:1;padding:0}
+    .modal-body{padding:14px 16px;max-height:70vh;overflow-y:auto}
+    .step-log{margin-top:10px;border-radius:var(--border-radius-md);background:var(--color-background-secondary);padding:10px 12px;font-size:12px;font-family:var(--font-mono);color:var(--color-text-secondary);line-height:1.8;max-height:300px;overflow-y:auto}
+    .step-line{opacity:0;animation:fadeIn .25s forwards}
+    @keyframes fadeIn{to{opacity:1}}
+    .result-box{margin-top:10px;border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-success);background:var(--color-background-success);padding:10px 12px}
+    .error-box{margin-top:10px;border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-danger);background:var(--color-background-danger);padding:10px 12px;font-size:12px;color:var(--color-text-danger)}
+    .tc-item{padding:7px 0;border-bottom:0.5px solid var(--color-border-tertiary);font-size:12px}
+    .tc-item:last-child{border-bottom:none}
+    .form-row{margin-bottom:10px}
+    .form-label{font-size:11px;color:var(--color-text-secondary);margin-bottom:4px;display:block}
+    .form-input{width:100%;background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-sm);color:var(--color-text-primary);font-family:var(--font-sans);font-size:13px;padding:7px 10px;outline:none}
+    .form-input:focus{border-color:var(--color-border-info)}
+    .loading-spinner{display:inline-block;width:12px;height:12px;border:2px solid var(--color-border-secondary);border-top-color:var(--color-text-info);border-radius:50%;animation:spin .6s linear infinite;margin-right:6px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .review-out{font-size:13px;line-height:1.65;color:var(--color-text-primary)}
+    .review-out h2{font-size:15px;font-weight:600;margin:14px 0 6px;color:var(--color-text-primary)}
+    .review-out h3{font-size:13px;font-weight:600;margin:12px 0 4px;color:var(--color-text-info)}
+    .review-out p{margin-bottom:8px;color:var(--color-text-secondary)}
+    .review-out strong{color:var(--color-text-primary)}
+    .review-out hr{border:none;border-top:0.5px solid var(--color-border-tertiary);margin:12px 0}
+    .review-out ul,.review-out ol{padding-left:18px;margin-bottom:8px}
+    .review-out li{margin-bottom:4px;color:var(--color-text-secondary)}
+    .review-out code{font-family:var(--font-mono);font-size:11px;background:var(--color-background-secondary);padding:1px 5px;border-radius:3px}
+  </style>
+</head>
+<body>
+
+<!-- Top nav -->
+<nav class="topnav">
+  <a href="/" class="topnav-brand" style="text-decoration:none;display:flex;align-items:center;gap:8px">
+    <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="3" y="10" width="12" height="19" rx="6" fill="#2d7a5e" transform="rotate(-12 9 19)"/>
+      <rect x="14" y="3" width="14" height="13" rx="6" fill="#5cb87a"/>
+    </svg>
+    <span style="font-family:var(--font-sans);font-size:15px;font-weight:700;color:#1b6b45;letter-spacing:-0.2px">منصة التركات</span>
+  </a>
+  <a href="/" class="topnav-link active">Dashboard</a>
+  <a href="/agents" class="topnav-link">Agents</a>
+  <a href="/knowledge-base" class="topnav-link">Knowledge Center</a>
+  <div class="topnav-spacer"></div>
+  <span class="config-badge" id="config-badge">checking…</span>
+</nav>
+
+<!-- Config warning banner -->
+<div class="banner" id="cfg-banner">
+  <span>⚠</span>
+  <span id="cfg-banner-msg">MCP not configured — some features disabled.</span>
+  <a href="/knowledge-base" style="margin-left:auto;font-size:11px;color:var(--color-text-warning)">Knowledge Center still works ↗</a>
+</div>
+
+<div class="dash">
+
+  <!-- ── SIDEBAR ──────────────────────────────────────────────────────────── -->
+  <div class="sidebar">
+    <!-- Sprint health donut -->
+    <div class="card">
+      <div class="card-header">Sprint health</div>
+      <div class="sprint-arc">
+        <svg viewBox="0 0 120 120" width="110" height="110">
+          <circle cx="60" cy="60" r="44" fill="none" stroke="var(--color-background-secondary)" stroke-width="14"/>
+          <circle id="arc-pass" cx="60" cy="60" r="44" fill="none" stroke="#037B3E" stroke-width="14" stroke-dasharray="0 276.46" stroke-dashoffset="69.12"/>
+          <circle id="arc-fail" cx="60" cy="60" r="44" fill="none" stroke="#EB2617" stroke-width="14" stroke-dasharray="0 276.46" stroke-dashoffset="69.12"/>
+          <circle id="arc-blk"  cx="60" cy="60" r="44" fill="none" stroke="#DF6005" stroke-width="14" stroke-dasharray="0 276.46" stroke-dashoffset="69.12"/>
+          <circle id="arc-ip"   cx="60" cy="60" r="44" fill="none" stroke="#0E5FDF" stroke-width="14" stroke-dasharray="0 276.46" stroke-dashoffset="69.12"/>
+          <circle id="arc-nr"   cx="60" cy="60" r="44" fill="none" stroke="#92959B" stroke-width="14" stroke-dasharray="0 276.46" stroke-dashoffset="69.12"/>
+          <text id="donut-total" x="60" y="56" text-anchor="middle" font-size="20" font-weight="500" fill="var(--color-text-primary)">—</text>
+          <text x="60" y="70" text-anchor="middle" font-size="10" fill="var(--color-text-secondary)">total</text>
+        </svg>
+      </div>
+      <div class="legend">
+        <div class="leg-item"><span class="leg-dot" style="background:#037B3E"></span>Passed <span id="leg-pass">—</span></div>
+        <div class="leg-item"><span class="leg-dot" style="background:#EB2617"></span>Failed <span id="leg-fail">—</span></div>
+        <div class="leg-item"><span class="leg-dot" style="background:#DF6005"></span>Blocked <span id="leg-blk">—</span></div>
+        <div class="leg-item"><span class="leg-dot" style="background:#0E5FDF"></span>In Progress <span id="leg-ip">—</span></div>
+        <div class="leg-item"><span class="leg-dot" style="background:#92959B"></span>Not run <span id="leg-nr">—</span></div>
+      </div>
+    </div>
+
+    <div style="display:none">
+    </div>
+  </div>
+
+  <!-- ── MAIN ─────────────────────────────────────────────────────────────── -->
+  <div class="main">
+
+    <!-- Metrics row -->
+    <!-- Current sprint stories -->
+    <div class="card" style="position:relative">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span>Current Sprint</span>
+          <span id="home-sprint-label" style="font-size:11px;color:var(--color-text-secondary);font-weight:400"></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:11px;color:var(--color-text-secondary)">AIO Cycle:</span>
+          <input id="home-cycle" placeholder="e.g. Squad-a-sprint-35"
+            style="background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);border-radius:4px;color:var(--color-text-primary);font-size:12px;padding:4px 8px;outline:none;width:190px"/>
+          <button class="agent-btn" onclick="loadCurrentSprint()" title="Refresh">↻</button>
+        </div>
+      </div>
+      <div id="home-stories-body">
+        <div style="font-size:12px;color:var(--color-text-secondary);padding:12px 0">Loading current sprint…</div>
+      </div>
+    </div>
+
+    <!-- Agent output panel (shown when an agent runs) -->
+    <div id="home-output-panel" style="display:none;background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden">
+      <div style="padding:10px 16px;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:500;color:var(--color-text-primary)">
+          <span id="home-panel-tag" style="font-size:10px;padding:2px 7px;border-radius:4px;background:var(--color-background-info);color:var(--color-text-info);font-weight:500"></span>
+          <span id="home-panel-title" style="color:var(--color-text-secondary)"></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span id="home-panel-status" style="font-size:11px;color:var(--color-text-secondary)"></span>
+          <button id="home-btn-stop" onclick="homeStopAgent()"
+            style="display:none;padding:4px 10px;font-size:11px;border-radius:4px;border:0.5px solid var(--color-border-danger);background:transparent;color:var(--color-text-danger);cursor:pointer">&#x25A0; Stop</button>
+          <button onclick="closeHomePanel()"
+            style="background:none;border:none;font-size:16px;color:var(--color-text-secondary);cursor:pointer;line-height:1">&#x2715;</button>
+        </div>
+      </div>
+      <div style="padding:14px 16px;display:flex;flex-direction:column;gap:10px">
+        <div id="home-panel-log" style="display:none;background:var(--color-background-secondary);border-radius:6px;padding:10px 12px;font-size:11.5px;font-family:var(--font-mono);color:var(--color-text-secondary);line-height:1.75;max-height:260px;overflow-y:auto"></div>
+        <div id="home-panel-result" style="max-height:480px;overflow-y:auto"></div>
+      </div>
+    </div>
+
+    <!-- Team allocation -->
+    <div class="card">
+      <div class="card-header">Team allocation & execution</div>
+      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px">
+        <div>
+          <div style="display:flex;gap:16px;font-size:10px;color:var(--color-text-secondary);margin-bottom:6px;padding-left:94px"><span>Allocated</span><span>Executed</span></div>
+          <div class="member-row">
+            <img class="avatar" style="--ag:#1a73e8" src="https://api.dicebear.com/9.x/avataaars/svg?seed=QA1&backgroundColor=b6e3f4&backgroundType=gradientLinear" alt="QA1"/>
+            <div class="member-name">QA1</div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+              <div class="bar-wrap"><div class="bar-fill" style="width:80%"></div></div>
+              <div class="bar-wrap"><div class="bar-fill done" style="width:60%"></div></div>
+            </div>
+            <div class="member-stat">12 / 9</div>
+          </div>
+          <div class="member-row">
+            <img class="avatar" style="--ag:#a855f7" src="https://api.dicebear.com/9.x/avataaars/svg?seed=QA2&backgroundColor=ffd5dc&backgroundType=gradientLinear" alt="QA2"/>
+            <div class="member-name">QA2</div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+              <div class="bar-wrap"><div class="bar-fill" style="width:67%"></div></div>
+              <div class="bar-wrap"><div class="bar-fill done" style="width:67%"></div></div>
+            </div>
+            <div class="member-stat">10 / 10</div>
+          </div>
+        </div>
+        <div>
+          <div style="display:flex;gap:16px;font-size:10px;color:var(--color-text-secondary);margin-bottom:6px;padding-left:94px"><span>Allocated</span><span>Executed</span></div>
+          <div class="member-row">
+            <img class="avatar" style="--ag:#f97316" src="https://api.dicebear.com/9.x/avataaars/svg?seed=QA3&backgroundColor=ffdfbf&backgroundType=gradientLinear" alt="QA3"/>
+            <div class="member-name">QA3</div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+              <div class="bar-wrap"><div class="bar-fill" style="width:100%"></div></div>
+              <div class="bar-wrap"><div class="bar-fill done" style="width:40%"></div></div>
+            </div>
+            <div class="member-stat">15 / 6</div>
+          </div>
+          <div class="member-row">
+            <img class="avatar" style="--ag:#1b6b45" src="https://api.dicebear.com/9.x/avataaars/svg?seed=QA4&backgroundColor=c0efda&backgroundType=gradientLinear" alt="QA4"/>
+            <div class="member-name">QA4</div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+              <div class="bar-wrap"><div class="bar-fill" style="width:53%"></div></div>
+              <div class="bar-wrap"><div class="bar-fill done" style="width:53%"></div></div>
+            </div>
+            <div class="member-stat">8 / 8</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /.main -->
+</div><!-- /.dash -->
+
+
+<!-- ══════════════════════════════════════════════
+     AGENT MODAL  (ticket-level actions)
+══════════════════════════════════════════════ -->
+<div class="overlay" id="agentOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-tag" id="modalTag">AI AGENT</div>
+        <div class="modal-title" id="modalTitle">Ticket</div>
+      </div>
+      <button class="close-btn" onclick="closeAgent()">×</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     KICKOFF MODAL  (testware prep)
+══════════════════════════════════════════════ -->
+<div class="overlay" id="kickoffOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-tag">TESTWARE PREP AGENT</div>
+        <div class="modal-title">Sprint kickoff</div>
+      </div>
+      <button class="close-btn" onclick="closeKickoff()">×</button>
+    </div>
+    <div class="modal-body" id="kickoffBody">
+      <p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:14px">
+        Generates test cases with Claude, creates AIO artifacts, writes Playwright specs, and links everything to your cycle.
+      </p>
+      <div class="form-row">
+        <label class="form-label">Cycle / Sprint name</label>
+        <input class="form-input" id="ko-cycle" placeholder="e.g. squad-a-sprint-35"/>
+      </div>
+      <div class="form-row">
+        <label class="form-label">Jira issue keys (comma-separated)</label>
+        <input class="form-input" id="ko-issues" placeholder="e.g. TAT-5800,TAT-5801"/>
+      </div>
+      <div class="form-row" style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="ko-kb" checked style="accent-color:var(--color-text-info)"/>
+        <label for="ko-kb" style="font-size:12px;color:var(--color-text-secondary);cursor:pointer">
+          Inject knowledge base context into Claude prompts
+        </label>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="action-btn" style="flex:1" onclick="closeKickoff()">Cancel</button>
+        <button class="action-btn primary" style="flex:2" onclick="startKickoff()">Start agent ↗</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ══════════════════════════════════════
+//  State
+// ══════════════════════════════════════
+let currentTicket = {};
+let kbEntryCount = 0;
+let jiraBaseUrl = '';
+
+// ══════════════════════════════════════
+//  Init
+// ══════════════════════════════════════
+let _tokenRefreshPromise = null;
+
+async function init() {
+  // Start token refresh immediately; loadCycleStats will await it before calling AIO
+  _tokenRefreshPromise = fetch('/api/admin/tokens/refresh', {method:'POST'}).catch(() => {});
+  await Promise.all([checkConfig(), loadCurrentSprint(), loadKbCount()]);
+}
+
+async function checkConfig() {
+  try {
+    const r = await fetch('/api/jira/health');
+    const d = await r.json();
+    if (d.jira_base_url) jiraBaseUrl = d.jira_base_url.replace(/\/$/, '');
+    const allVars = Object.values(d.env || {});
+    const missing = allVars.filter(v => !v).length;
+    const badge = document.getElementById('config-badge');
+    const banner = document.getElementById('cfg-banner');
+    if (!d.mcp_found) {
+      badge.textContent = 'MCP not found';
+      banner.classList.add('show');
+      document.getElementById('cfg-banner-msg').textContent =
+        `MCP project not found at ${d.mcp_path}. Jira/AIO features disabled.`;
+    } else if (missing > 0) {
+      badge.textContent = `${missing} env vars missing`;
+      banner.classList.add('show');
+      document.getElementById('cfg-banner-msg').textContent =
+        `${missing} required env vars missing in .env. Configure them to enable agent features.`;
+    } else {
+      badge.textContent = 'Connected';
+      badge.classList.add('ok');
+    }
+  } catch {
+    document.getElementById('config-badge').textContent = 'Backend offline';
+  }
+}
+
+async function loadCurrentSprint() {
+  const body = document.getElementById('home-stories-body');
+  body.innerHTML = '<div style="font-size:12px;color:var(--color-text-secondary);padding:12px 0">Loading current sprint…</div>';
+  try {
+    const r = await fetch('/api/agents/pull-sprint', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ sprint_name: '', issue_types: 'Story' }),
+    });
+    const data = await r.json();
+    if (data.error) throw new Error(data.error);
+    homeStories = data.stories || [];
+    document.getElementById('home-sprint-label').textContent = `· ${homeStories.length} stories`;
+    const sprintLabelEl = document.getElementById('sprint-label');
+    if (sprintLabelEl) sprintLabelEl.textContent = 'AI-Powered · Current Sprint';
+    if (data.cycle_name) {
+      document.getElementById('home-cycle').value = data.cycle_name;
+      loadCycleStats(data.cycle_name);
+    }
+    renderHomeStories(homeStories);
+  } catch(e) {
+    body.innerHTML = `<div style="font-size:12px;color:var(--color-text-danger);padding:12px 0">Failed to load sprint: ${e.message}</div>`;
+  }
+}
+
+async function loadCycleStats(cycleName) {
+  try {
+    if (_tokenRefreshPromise) await _tokenRefreshPromise;
+    const r = await fetch(`/api/agents/cycle-stats?cycle_name=${encodeURIComponent(cycleName)}`);
+    const d = await r.json();
+
+    if (d.error) {
+      const msg = d.aio_error
+        ? 'AIO token expired — refresh via /admin'
+        : d.error;
+      ['m-total','m-pass','m-blk','m-fail'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.textContent = '!'; el.title = msg; }
+      });
+      document.getElementById('donut-total').textContent = '!';
+      const subtitle = document.querySelector('#donut-total + text');
+      if (subtitle) subtitle.textContent = 'error';
+      console.warn('cycle-stats error:', msg);
+      return;
+    }
+
+    const total = d.total;
+    document.getElementById('m-total').textContent = total;
+    document.getElementById('m-pass').textContent  = d.pass_rate + '%';
+    document.getElementById('m-blk').textContent   = d.blocked;
+    document.getElementById('m-fail').textContent  = d.failed;
+    document.getElementById('donut-total').textContent = total;
+    document.getElementById('leg-pass').textContent = d.passed;
+    document.getElementById('leg-fail').textContent = d.failed;
+    document.getElementById('leg-blk').textContent  = d.blocked;
+    document.getElementById('leg-ip').textContent   = d.in_progress ?? 0;
+    document.getElementById('leg-nr').textContent   = d.not_run;
+
+    if (!total) return;
+
+    const circ = 2 * Math.PI * 44;
+    const pct = v => (v / total) * circ;
+    let off = circ / 4; // start at 12 o'clock
+    [['arc-pass', d.passed], ['arc-fail', d.failed], ['arc-blk', d.blocked], ['arc-ip', d.in_progress ?? 0], ['arc-nr', d.not_run]].forEach(([id, val]) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const span = pct(val);
+      el.setAttribute('stroke-dasharray', `${span} ${circ - span}`);
+      el.setAttribute('stroke-dashoffset', String(off));
+      off -= span;
+    });
+  } catch(e) { console.warn('loadCycleStats failed:', e); }
+}
+
+async function loadKbCount() {
+  try {
+    const r = await fetch('/api/knowledge');
+    const entries = await r.json();
+    kbEntryCount = Array.isArray(entries) ? entries.length : 0;
+    const el = document.getElementById('tp-kb');
+    if (kbEntryCount > 0) {
+      el.textContent = `${kbEntryCount} entries`;
+      el.className = 'badge b-ready';
+    } else {
+      el.textContent = 'Empty';
+      el.className = 'badge b-pending';
+    }
+  } catch {}
+}
+
+// ══════════════════════════════════════
+//  Home sprint stories + agent panel
+// ══════════════════════════════════════
+let homeStories = [];
+let _homeEs = null;
+let _homeJobId = null;
+
+function homeStatusChip(s) {
+  const l = (s||'').toLowerCase();
+  if(l.includes('done')||l.includes('deploy')) return 'b-ready';
+  if(l.includes('progress')) return 'b-progress';
+  if(l.includes('block')) return 'b-critical';
+  return 'b-pending';
+}
+
+function renderHomeStories(stories) {
+  const body = document.getElementById('home-stories-body');
+  if(!stories.length){
+    body.innerHTML = '<div style="font-size:12px;color:var(--color-text-secondary);padding:12px 0">No stories found in current sprint.</div>';
+    return;
+  }
+  let html = `<table style="width:100%;border-collapse:collapse">
+    <thead><tr>
+      <th style="text-align:left;padding:6px 10px;font-size:10px;font-weight:500;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary);text-transform:uppercase">Key</th>
+      <th style="text-align:left;padding:6px 10px;font-size:10px;font-weight:500;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary);text-transform:uppercase">Summary</th>
+      <th style="text-align:left;padding:6px 10px;font-size:10px;font-weight:500;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary);text-transform:uppercase">Status</th>
+      <th style="text-align:left;padding:6px 10px;font-size:10px;font-weight:500;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary);text-transform:uppercase">FE</th>
+      <th style="text-align:left;padding:6px 10px;font-size:10px;font-weight:500;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary);text-transform:uppercase">BE</th>
+      <th style="text-align:left;padding:6px 10px;font-size:10px;font-weight:500;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary);text-transform:uppercase">QA</th>
+      <th style="text-align:right;padding:6px 10px;font-size:10px;font-weight:500;color:var(--color-text-secondary);border-bottom:0.5px solid var(--color-border-tertiary);text-transform:uppercase">Actions</th>
+    </tr></thead><tbody>`;
+  for(const s of stories){
+    html += `<tr id="hrow-${s.key}" style="cursor:default">
+      <td style="padding:8px 10px"><a class="ticket-id" href="${jiraBaseUrl}/browse/${esc(s.key)}" target="_blank" rel="noopener" style="text-decoration:none">${esc(s.key)}</a></td>
+      <td style="padding:8px 10px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--color-text-primary)">${esc(s.summary)}</td>
+      <td style="padding:8px 10px"><span class="badge ${homeStatusChip(s.status)}">${esc(s.status)}</span></td>
+      <td style="padding:8px 10px;font-size:11px;color:var(--color-text-secondary)">${(s.fe||[]).join(', ')||'—'}</td>
+      <td style="padding:8px 10px;font-size:11px;color:var(--color-text-secondary)">${(s.be||[]).join(', ')||'—'}</td>
+      <td style="padding:8px 10px;font-size:11px;color:var(--color-text-secondary)">${(s.qa||[]).join(', ')||'—'}</td>
+      <td style="padding:8px 10px;text-align:right">
+        <div style="display:flex;gap:5px;justify-content:flex-end">
+          <button class="agent-btn" onclick="homeRunReview('${esc(s.key)}')">Review userstory</button>
+          <button class="agent-btn" onclick="homeRunSubtasks('${esc(s.key)}')">Create subtasks</button>
+          <button class="agent-btn" onclick="homeRunTestware('${esc(s.key)}')">Prepare testware</button>
+        </div>
+      </td>
+    </tr>`;
+  }
+  html += '</tbody></table>';
+  body.innerHTML = html;
+}
+
+function openHomePanel(agent, key) {
+  if(_homeEs){ _homeEs.close(); _homeEs = null; }
+  _homeJobId = null;
+  document.getElementById('home-panel-tag').textContent = agent;
+  document.getElementById('home-panel-title').textContent = key;
+  document.getElementById('home-panel-log').innerHTML = '';
+  document.getElementById('home-panel-log').style.display = 'none';
+  document.getElementById('home-panel-result').innerHTML = '';
+  document.getElementById('home-panel-status').textContent = 'Running…';
+  document.getElementById('home-btn-stop').style.display = 'inline-block';
+  document.getElementById('home-btn-stop').disabled = false;
+  document.getElementById('home-btn-stop').textContent = '◼ Stop';
+  document.getElementById('home-output-panel').style.display = 'block';
+  document.getElementById('home-output-panel').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function closeHomePanel() {
+  if(_homeEs){ _homeEs.close(); _homeEs = null; }
+  document.getElementById('home-output-panel').style.display = 'none';
+}
+
+function homePanelDone(ok, msg, cancelled) {
+  document.getElementById('home-btn-stop').style.display = 'none';
+  _homeJobId = null;
+  document.getElementById('home-panel-status').textContent = cancelled ? 'Stopped' : ok ? 'Done' : 'Failed';
+  if(cancelled){
+    document.getElementById('home-panel-result').innerHTML =
+      '<div style="font-size:12px;color:var(--color-text-warning);padding:4px 0">Agent stopped by user.</div>';
+  } else if(!ok && msg){
+    document.getElementById('home-panel-result').innerHTML =
+      `<div style="font-size:12px;color:var(--color-text-danger);background:var(--color-background-danger);border:0.5px solid var(--color-border-danger);border-radius:6px;padding:9px 12px">${msg}</div>`;
+  }
+}
+
+function homeStreamJob(jobId) {
+  _homeJobId = jobId;
+  const logEl = document.getElementById('home-panel-log');
+  logEl.style.display = 'block';
+  const es = new EventSource(`/api/agents/stream/${jobId}`);
+  _homeEs = es;
+  es.onmessage = e => {
+    const msg = JSON.parse(e.data);
+    if(msg.type === 'log'){
+      const line = document.createElement('div');
+      line.textContent = msg.message;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+    } else if(msg.type === 'done'){
+      es.close(); _homeEs = null;
+      homeHandleDone(msg);
+    } else if(msg.type === 'error'){
+      es.close(); _homeEs = null;
+      homePanelDone(false, msg.message);
+    }
+  };
+  es.onerror = () => { es.close(); _homeEs = null; homePanelDone(false, 'Connection lost'); };
+}
+
+function homeHandleDone(msg) {
+  if(msg.status === 'cancelled'){ homePanelDone(false, null, true); return; }
+  if(msg.status !== 'completed'){ homePanelDone(false, msg.error || 'Unknown error'); return; }
+  const res = msg.result || {};
+  document.getElementById('home-panel-log').style.display = 'none';
+  if(res.review){
+    document.getElementById('home-panel-result').innerHTML =
+      `<div class="review-out">${marked.parse(res.review)}</div>`;
+  } else if(res.results){
+    let html = '';
+    for(const [sk, subs] of Object.entries(res.results)){
+      html += `<div style="background:var(--color-background-secondary);border-radius:6px;padding:10px 12px;margin-bottom:6px"><div style="font-size:11px;font-weight:600;color:var(--color-text-primary);margin-bottom:6px;padding-bottom:5px;border-bottom:0.5px solid var(--color-border-tertiary)">${sk}</div>`;
+      for(const [name, key] of Object.entries(subs)){
+        html += `<div style="display:flex;gap:8px;font-size:12px;padding:3px 0"><span style="font-family:monospace;color:var(--color-text-info);min-width:90px">${key}</span><span style="color:var(--color-text-success)">${name}</span></div>`;
+      }
+      html += '</div>';
+    }
+    document.getElementById('home-panel-result').innerHTML = html;
+  } else {
+    document.getElementById('home-panel-result').innerHTML =
+      `<div style="font-size:12px;color:var(--color-text-success);padding:4px 0">&#x2713; Complete</div>`;
+  }
+  homePanelDone(true);
+}
+
+async function homeStopAgent() {
+  if(!_homeJobId) return;
+  const btn = document.getElementById('home-btn-stop');
+  btn.disabled = true; btn.textContent = 'Stopping…';
+  await fetch(`/api/agents/stop/${_homeJobId}`, {method:'POST'}).catch(()=>{});
+}
+
+async function homeRunReview(key) {
+  openHomePanel('Review', key);
+  const r = await fetch('/api/agents/review-story', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({issue_key:key})});
+  const d = await r.json();
+  if(!r.ok||d.error){ homePanelDone(false, d.error||r.statusText); return; }
+  homeStreamJob(d.job_id);
+}
+
+async function homeRunSubtasks(key) {
+  openHomePanel('Subtasks', key);
+  const r = await fetch('/api/agents/create-subtasks', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({issue_keys:key})});
+  const d = await r.json();
+  if(!r.ok||d.error){ homePanelDone(false, d.error||r.statusText); return; }
+  homeStreamJob(d.job_id);
+}
+
+async function homeRunTestware(key) {
+  const cycle = document.getElementById('home-cycle').value.trim();
+  if(!cycle){ alert('Enter an AIO Cycle Name next to the sprint header first'); return; }
+  openHomePanel('AIO Testware', key);
+  const r = await fetch('/api/agents/aio-testware', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({issue_key:key,cycle_name:cycle})});
+  const d = await r.json();
+  if(!r.ok||d.error){ homePanelDone(false, d.error||r.statusText); return; }
+  homeStreamJob(d.job_id);
+}
+
+// ══════════════════════════════════════
+//  Agent modal — kept for legacy actions
+// ══════════════════════════════════════
+function openAgent(id, title, priority, status) {
+  currentTicket = {id, title, priority, status};
+  document.getElementById('modalTag').textContent = 'AI AGENT · ' + id;
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = `
+    <p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:12px">
+      Select an action for the AI agent to perform on this ticket.
+    </p>
+    <button class="action-btn primary" onclick="runTestcasesKickoff()">Generate test cases + push to AIO</button>
+    <button class="action-btn" onclick="runExecution()">Execute tests for this ticket</button>
+  `;
+  document.getElementById('agentOverlay').classList.add('show');
+}
+
+function closeAgent() {
+  document.getElementById('agentOverlay').classList.remove('show');
+}
+
+// Single-ticket kickoff: ask for cycle name inline
+function runTestcasesKickoff() {
+  document.getElementById('modalBody').innerHTML = `
+    <p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:12px">
+      Generating test cases for <strong style="color:var(--color-text-primary)">${esc(currentTicket.id)}</strong>,
+      creating AIO artifacts, and writing a Playwright spec.
+    </p>
+    <div class="form-row">
+      <label class="form-label">Cycle / Sprint name</label>
+      <input class="form-input" id="inline-cycle" placeholder="e.g. squad-a-sprint-35"/>
+    </div>
+    <div class="form-row" style="display:flex;align-items:center;gap:8px">
+      <input type="checkbox" id="inline-kb" checked style="accent-color:var(--color-text-info)"/>
+      <label for="inline-kb" style="font-size:12px;color:var(--color-text-secondary);cursor:pointer">
+        Inject knowledge base context (${kbEntryCount} entries)
+      </label>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="action-btn" onclick="document.getElementById('modalBody').innerHTML=''" style="flex:1">Back</button>
+      <button class="action-btn primary" style="flex:2" onclick="confirmTicketKickoff()">Start ↗</button>
+    </div>
+  `;
+}
+
+async function confirmTicketKickoff() {
+  const cycle = document.getElementById('inline-cycle')?.value.trim();
+  if (!cycle) { alert('Cycle name is required.'); return; }
+  const useKb = document.getElementById('inline-kb')?.checked;
+  startStreamingJob('/api/testware/kickoff', {
+    issues: [currentTicket.id],
+    cycle_name: cycle,
+    use_knowledge: useKb,
+  }, 'kickoff');
+}
+
+// Single-ticket execution
+function runExecution() {
+  document.getElementById('modalBody').innerHTML = `
+    <p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:12px">
+      Run Playwright tests for <strong style="color:var(--color-text-primary)">${esc(currentTicket.id)}</strong>.
+    </p>
+    <div class="form-row">
+      <label class="form-label">Cycle / Sprint name</label>
+      <input class="form-input" id="exec-cycle" placeholder="e.g. squad-a-sprint-35"/>
+    </div>
+    <div class="form-row">
+      <label class="form-label">Test data CSV path (optional)</label>
+      <input class="form-input" id="exec-data" placeholder="/path/to/data.csv"/>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="action-btn" onclick="openAgent('${esc(currentTicket.id)}','${esc(currentTicket.title)}','${esc(currentTicket.priority)}','${esc(currentTicket.status)}')" style="flex:1">Back</button>
+      <button class="action-btn primary" style="flex:2" onclick="confirmExecution()">Execute ↗</button>
+    </div>
+  `;
+}
+
+async function confirmExecution() {
+  const cycle = document.getElementById('exec-cycle')?.value.trim();
+  if (!cycle) { alert('Cycle name is required.'); return; }
+  const dataFile = document.getElementById('exec-data')?.value.trim() || null;
+  startStreamingJob('/api/execution/run', {
+    issue: currentTicket.id,
+    cycle_name: cycle,
+    data_file: dataFile,
+  }, 'execution');
+}
+
+// Coverage gaps (frontend preview only)
+function runGaps() {
+  const gaps = [
+    {risk:'High', text:'Session expiry during flow not tested'},
+    {risk:'Medium', text:'SSO / OAuth path has no test case'},
+    {risk:'Low', text:'Mobile viewport not covered'},
+  ];
+  document.getElementById('modalBody').innerHTML = `
+    <div style="font-size:11px;font-weight:500;color:var(--color-text-success);margin-bottom:8px">${gaps.length} coverage gaps found</div>
+    ${gaps.map(g => `
+      <div class="tc-item">
+        <span style="color:${g.risk==='High'?'var(--color-text-danger)':g.risk==='Medium'?'var(--color-text-warning)':'var(--color-text-secondary)'}">${g.risk}</span>
+        — ${esc(g.text)}
+      </div>`).join('')}
+    <button class="action-btn" style="margin-top:10px" onclick="openAgent('${esc(currentTicket.id)}','${esc(currentTicket.title)}','${esc(currentTicket.priority)}','${esc(currentTicket.status)}')">Back</button>
+  `;
+}
+
+// ══════════════════════════════════════
+//  Kickoff modal (bulk)
+// ══════════════════════════════════════
+function openKickoff() {
+  document.getElementById('kickoffOverlay').classList.add('show');
+}
+function closeKickoff() {
+  document.getElementById('kickoffOverlay').classList.remove('show');
+}
+
+async function startKickoff() {
+  const cycle = document.getElementById('ko-cycle').value.trim();
+  const issueRaw = document.getElementById('ko-issues').value.trim();
+  if (!cycle || !issueRaw) { alert('Cycle name and at least one issue key are required.'); return; }
+  const issues = issueRaw.split(',').map(s => s.trim()).filter(Boolean);
+  const useKb = document.getElementById('ko-kb').checked;
+
+  // Switch to the agent overlay to show progress
+  closeKickoff();
+  currentTicket = {id: issues.join(', '), title: `Sprint kickoff — ${cycle}`, priority:'', status:''};
+  document.getElementById('modalTag').textContent = 'TESTWARE PREP AGENT';
+  document.getElementById('modalTitle').textContent = `Kickoff · ${cycle}`;
+  document.getElementById('agentOverlay').classList.add('show');
+
+  startStreamingJob('/api/testware/kickoff', {
+    issues,
+    cycle_name: cycle,
+    use_knowledge: useKb,
+  }, 'kickoff');
+}
+
+// ══════════════════════════════════════
+//  Streaming job runner
+// ══════════════════════════════════════
+async function startStreamingJob(endpoint, payload, type) {
+  const logEl = document.createElement('div');
+  logEl.className = 'step-log';
+  logEl.id = 'live-log';
+  document.getElementById('modalBody').innerHTML = `
+    <div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:8px">
+      <span class="loading-spinner"></span>Agent running…
+    </div>`;
+  document.getElementById('modalBody').appendChild(logEl);
+
+  // Mark testware steps as "in progress"
+  if (type === 'kickoff') {
+    ['tp-subtasks','tp-cases','tp-cycle'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.textContent = 'In Progress'; el.className = 'badge b-progress'; }
+    });
+  }
+
+  let jobId;
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    jobId = data.job_id;
+  } catch (err) {
+    document.getElementById('modalBody').innerHTML =
+      `<div class="error-box">Failed to start job: ${esc(String(err))}</div>`;
+    return;
+  }
+
+  // Stream via SSE
+  const streamPath = type === 'kickoff'
+    ? `/api/testware/stream/${jobId}`
+    : `/api/execution/stream/${jobId}`;
+
+  const es = new EventSource(streamPath);
+  es.onmessage = (evt) => {
+    const msg = JSON.parse(evt.data);
+    if (msg.type === 'log') {
+      appendLog(logEl, msg.message);
+    } else if (msg.type === 'done') {
+      es.close();
+      if (msg.status === 'completed') {
+        onJobComplete(type);
+      } else {
+        document.getElementById('modalBody').innerHTML +=
+          `<div class="error-box">Agent failed: ${esc(msg.error || 'unknown error')}</div>`;
+        if (type === 'kickoff') {
+          ['tp-subtasks','tp-cases','tp-cycle'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.textContent = 'Failed'; el.className = 'badge b-critical'; }
+          });
+        }
+      }
+    } else if (msg.type === 'error') {
+      es.close();
+      document.getElementById('modalBody').innerHTML +=
+        `<div class="error-box">${esc(msg.message)}</div>`;
+    }
+  };
+  es.onerror = () => {
+    es.close();
+    document.getElementById('modalBody').innerHTML +=
+      `<div class="error-box">Connection lost.</div>`;
+  };
+}
+
+function appendLog(el, text) {
+  const line = document.createElement('div');
+  line.className = 'step-line';
+  line.textContent = text;
+  if (text.startsWith('=') || text.includes('COMPLETE') || text.includes('complete')) {
+    line.style.color = 'var(--color-text-success)';
+  }
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function onJobComplete(type) {
+  document.getElementById('modalBody').querySelector('.loading-spinner')?.parentElement?.remove();
+  document.getElementById('modalBody').innerHTML +=
+    `<div class="result-box" style="margin-top:10px">
+      <div style="font-size:11px;font-weight:500;color:var(--color-text-success);margin-bottom:4px">
+        ✓ ${type === 'kickoff' ? 'Testware prep complete' : 'Execution complete'}
+      </div>
+      <div style="font-size:12px;color:var(--color-text-secondary)">Check Jira and AIO for the generated artifacts.</div>
+    </div>
+    <button class="action-btn" style="margin-top:10px" onclick="closeAgent()">Close</button>`;
+
+  if (type === 'kickoff') {
+    ['tp-subtasks','tp-cases','tp-cycle'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.textContent = 'Ready'; el.className = 'badge b-ready'; }
+    });
+  }
+}
+
+// ══════════════════════════════════════
+//  Utilities
+// ══════════════════════════════════════
+function esc(s) {
+  return String(s ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Close overlays on backdrop click
+['agentOverlay','kickoffOverlay'].forEach(id => {
+  document.getElementById(id).addEventListener('click', e => {
+    if (e.target === document.getElementById(id)) {
+      document.getElementById(id).classList.remove('show');
+    }
+  });
+});
+
+init();
+</script>
+</body>
+</html>

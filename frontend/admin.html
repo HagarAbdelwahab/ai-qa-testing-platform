@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin · QA Platform</title>
+  <link rel="stylesheet" href="/static/style.css"/>
+  <script src="/static/nav.js" defer></script>
+  <style>
+    .admin-card { max-width: 520px; margin: 40px auto; background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 24px; }
+    h2 { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
+    .sub { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 20px; }
+    .form-group { margin-bottom: 14px; }
+    .form-label { font-size: 11px; color: var(--color-text-secondary); display: block; margin-bottom: 4px; }
+    .form-input { width: 100%; background: var(--color-background-secondary); border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-sm); color: var(--color-text-primary); font-family: var(--font-mono); font-size: 12px; padding: 8px 10px; outline: none; }
+    .form-input:focus { border-color: var(--color-border-info); }
+    .btn { padding: 9px 18px; border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-info); background: transparent; color: var(--color-text-info); font-size: 13px; cursor: pointer; width: 100%; margin-top: 4px; }
+    .btn:hover { background: var(--color-background-info); }
+    .status { margin-top: 14px; font-size: 12px; padding: 10px; border-radius: var(--border-radius-sm); display: none; }
+    .status.ok  { display:block; background: var(--color-background-success); color: var(--color-text-success); border: 0.5px solid var(--color-border-success); }
+    .status.err { display:block; background: var(--color-background-danger);  color: var(--color-text-danger);  border: 0.5px solid var(--color-border-danger); }
+    .hint { font-size: 11px; color: var(--color-text-secondary); margin-top: 16px; padding-top: 14px; border-top: 0.5px solid var(--color-border-tertiary); line-height: 1.7; }
+  </style>
+</head>
+<body>
+<nav class="topnav">
+  <a href="/" class="topnav-brand" style="text-decoration:none;display:flex;align-items:center;gap:8px">
+    <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="3" y="10" width="12" height="19" rx="6" fill="#2d7a5e" transform="rotate(-12 9 19)"/>
+      <rect x="14" y="3" width="14" height="13" rx="6" fill="#5cb87a"/>
+    </svg>
+    <span style="font-family:var(--font-sans);font-size:15px;font-weight:700;color:#1b6b45;letter-spacing:-0.2px">منصة التركات</span>
+  </a>
+  <a href="/" class="topnav-link">Dashboard</a>
+  <a href="/knowledge-base" class="topnav-link">Knowledge Center</a>
+  <a href="/admin" class="topnav-link active">Admin</a>
+</nav>
+<div class="page">
+  <div class="admin-card">
+    <h2>AIO Token Refresh</h2>
+    <p class="sub">Update AIO tokens without restarting the server. Tokens expire every ~45 min — grab fresh ones from browser DevTools on the AIO panel.</p>
+
+    <div class="form-group">
+      <label class="form-label">AIO_TOKEN (include "Bearer " prefix)</label>
+      <input class="form-input" id="aio-token" placeholder="Bearer eyJhbGci..."/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">AIO_CSRF</label>
+      <input class="form-input" id="aio-csrf" placeholder="1775861638827"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">AIO_SESSION</label>
+      <input class="form-input" id="aio-session" placeholder="501c1e14-b7bb-..."/>
+    </div>
+
+    <button class="btn" onclick="save()">Update tokens</button>
+    <div class="status" id="status"></div>
+
+    <div class="hint">
+      <strong>How to get tokens from DevTools:</strong><br/>
+      1. Open Jira → any AIO Test Cases panel<br/>
+      2. F12 → Network tab → filter "aio-tcms"<br/>
+      3. Click any request → Headers → copy:<br/>
+      &nbsp;&nbsp;• <code>authorization</code> → AIO_TOKEN<br/>
+      &nbsp;&nbsp;• <code>aio-tests-csrf-token</code> → AIO_CSRF<br/>
+      &nbsp;&nbsp;• <code>x-aio-tests-forge-session</code> → AIO_SESSION
+    </div>
+  </div>
+</div>
+<script>
+async function save() {
+  const body = {
+    aio_token:   document.getElementById('aio-token').value.trim(),
+    aio_csrf:    document.getElementById('aio-csrf').value.trim(),
+    aio_session: document.getElementById('aio-session').value.trim(),
+  };
+  if (!body.aio_token || !body.aio_csrf || !body.aio_session) {
+    show('err', 'All three fields are required.'); return;
+  }
+  try {
+    const r = await fetch('/api/admin/tokens', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    if (r.ok) show('ok', 'Tokens updated — takes effect immediately, no restart needed.');
+    else show('err', 'Failed: ' + (await r.text()));
+  } catch(e) { show('err', String(e)); }
+}
+function show(type, msg) {
+  const el = document.getElementById('status');
+  el.className = 'status ' + type;
+  el.textContent = msg;
+}
+</script>
+</body>
+</html>
