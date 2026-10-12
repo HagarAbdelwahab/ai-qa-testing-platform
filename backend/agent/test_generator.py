@@ -103,10 +103,22 @@ Acceptance Criteria: {acceptance_criteria or "Not specified"}
 {history_block}
 Use the discussion comments and linked tickets above (if any) to understand edge cases, reported bugs, clarifications, and constraints that should be covered by the test cases.
 
-COVERAGE RULES — these are mandatory:
+SCOPE RULES — these override the coverage rules below:
+A. Write ONLY business/functional test cases that a manual QA engineer can execute against the
+   running product (UI, user-visible API behaviour, business rules, roles, data and states).
+B. Do NOT write cases about developer or tooling work, even if the description mentions it:
+   unit/integration tests, code coverage, test frameworks or test automation, CI/CD pipelines,
+   builds, linting, code review, refactoring, logging internals, dependency upgrades, mocks,
+   feature-flag plumbing, data seeders / seed scripts (including their probabilities, weights,
+   random distributions or generated-data ratios), or "verify the code/function/class does X".
+C. Each case must describe what an end user or business stakeholder would observe, in business
+   language — not implementation details.
+
+COVERAGE RULES — these are mandatory (within the scope above):
 1. Read the WHOLE description: every heading, paragraph, list item, nested sub-item and table row.
-2. Before writing, silently enumerate every distinct requirement: each rule, condition, branch,
-   error/status code, message text, button/field, state, role, API check and known defect.
+2. Before writing, silently enumerate every distinct business requirement: each rule, condition,
+   branch, error/status code, message text, button/field, state, role, user-visible API behaviour
+   and known defect. Skip items that fall under scope rule B.
 3. Every enumerated requirement must be covered by at least one test case. Do not merge
    unrelated requirements into one case, and do not stop early — there is no limit on count.
 4. If the description already contains test cases (e.g. a table with TC ids), each one must
