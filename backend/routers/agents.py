@@ -25,8 +25,30 @@ class ReviewStoryRequest(BaseModel):
     issue_key: str
 
 
+class ReconcileStoryRequest(BaseModel):
+    issue_key: str
+    be_refs: str = ""        # extra BE branches / PR numbers / PR URLs, comma-separated
+    fe_refs: str = ""        # same for FE
+    environment: str = ""    # required: testing-env branch to diff vs production, e.g. qa-squad-a
+
+
 class CreateSubtasksRequest(BaseModel):
     issue_keys: str          # comma-separated, e.g. "TAT-100,TAT-101"
+    qa_assignee: str = ""    # required: email or Jira display name of the QA owner
+
+
+class AddCaseItem(BaseModel):
+    title: str
+    precondition: str = ""
+    step: str = ""
+    test_data: str = ""
+    expected_result: str
+
+
+class AddCasesRequest(BaseModel):
+    issue_key: str
+    cycle_name: str          # required: AIO cycle the cases are added to
+    cases: list[AddCaseItem]
 
 
 class AioTestwareRequest(BaseModel):
@@ -74,15 +96,59 @@ def review_story(req: ReviewStoryRequest):
     return {"job_id": job_id}
 
 
+@router.get("/reconcile-envs")
+def reconcile_envs():
+    from agent import config
+    return {"environments": config.RECONCILE_ENV_BRANCHES}
+
+
+@router.post("/reconcile-story")
+def reconcile_story(req: ReconcileStoryRequest):
+    from agent import config
+    env = req.environment.strip()
+    if not env:
+        return JSONResponse(status_code=400, content={
+            "error": f"Environment is required. Allowed: {', '.join(config.RECONCILE_ENV_BRANCHES)}"})
+    if env not in config.RECONCILE_ENV_BRANCHES:
+        return JSONResponse(status_code=400, content={
+            "error": f"Unknown environment '{env}'. Allowed: {', '.join(config.RECONCILE_ENV_BRANCHES)}"})
+    job_id = jobs.create_job("reconcile-story")
+    threading.Thread(
+        target=bridge.run_reconcile_story,
+        args=(job_id, req.issue_key.strip().upper(), req.be_refs.strip(), req.fe_refs.strip(), env),
+        daemon=True,
+    ).start()
+    return {"job_id": job_id}
+
+
 @router.post("/create-subtasks")
 def create_subtasks(req: CreateSubtasksRequest):
     keys = [k.strip().upper() for k in req.issue_keys.split(",") if k.strip()]
     if not keys:
         return JSONResponse(status_code=400, content={"error": "No issue keys provided"})
+    if not req.qa_assignee.strip():
+        return JSONResponse(status_code=400, content={"error": "QA assignee is required"})
     job_id = jobs.create_job("create-subtasks")
     threading.Thread(
         target=bridge.run_create_subtasks,
-        args=(job_id, keys),
+        args=(job_id, keys, req.qa_assignee.strip()),
+        daemon=True,
+    ).start()
+    return {"job_id": job_id}
+
+
+@router.post("/add-cases")
+def add_cases(req: AddCasesRequest):
+    key = req.issue_key.strip().upper()
+    cases = [c.model_dump() for c in req.cases if c.title.strip() and c.expected_result.strip()]
+    if not key or not cases:
+        return JSONResponse(status_code=400, content={"error": "Issue key and at least one case are required"})
+    if not req.cycle_name.strip():
+        return JSONResponse(status_code=400, content={"error": "AIO cycle name is required"})
+    job_id = jobs.create_job("add-cases")
+    threading.Thread(
+        target=bridge.run_add_cases,
+        args=(job_id, key, cases, req.cycle_name.strip()),
         daemon=True,
     ).start()
     return {"job_id": job_id}

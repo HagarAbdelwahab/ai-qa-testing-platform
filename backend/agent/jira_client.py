@@ -6,20 +6,25 @@ import time
 import requests
 from requests.auth import HTTPBasicAuth
 import config
+from retry_utils import get_with_retry
 
 _auth = HTTPBasicAuth(config.JIRA_EMAIL, config.JIRA_API_TOKEN)
 _headers = {"Accept": "application/json", "Content-Type": "application/json"}
 _base = config.JIRA_BASE_URL.rstrip("/")
 
+# Every Jira call gets a timeout so a hung socket cannot block a job forever.
+HTTP_TIMEOUT = 60  # seconds
+
 
 def _get(path: str) -> dict:
-    r = requests.get(f"{_base}{path}", auth=_auth, headers=_headers)
+    r = get_with_retry(f"{_base}{path}", auth=_auth, headers=_headers)
     r.raise_for_status()
     return r.json()
 
 
 def _post(path: str, body: dict) -> dict:
-    r = requests.post(f"{_base}{path}", auth=_auth, headers=_headers, json=body)
+    r = requests.post(f"{_base}{path}", auth=_auth, headers=_headers, json=body,
+                      timeout=HTTP_TIMEOUT)
     if not r.ok:
         raise requests.HTTPError(
             f"{r.status_code} {r.reason} for url: {r.url}\nBody: {r.text}", response=r
@@ -28,7 +33,8 @@ def _post(path: str, body: dict) -> dict:
 
 
 def _put(path: str, body: dict) -> dict:
-    r = requests.put(f"{_base}{path}", auth=_auth, headers=_headers, json=body)
+    r = requests.put(f"{_base}{path}", auth=_auth, headers=_headers, json=body,
+                      timeout=HTTP_TIMEOUT)
     if not r.ok:
         raise requests.HTTPError(
             f"{r.status_code} {r.reason} for url: {r.url}\nBody: {r.text}", response=r
@@ -200,17 +206,22 @@ def _get_multi_assignee_field() -> str | None:
     return None
 
 
-def get_issue_comments(issue_key: str, max_results: int = 10) -> list[str]:
-    """Return up to max_results comment bodies as plain text."""
-    data = _get(f"/rest/api/3/issue/{issue_key}/comment?maxResults={max_results}&orderBy=-created")
-    comments = []
-    for c in data.get("comments", []):
-        body = c.get("body", {})
-        text = adf_to_text(body)
-        if text:
-            author = c.get("author", {}).get("displayName", "Unknown")
-            comments.append(f"[{author}]: {text}")
-    return comments
+def get_issue_comments(issue_key: str) -> list[str]:
+    """Return every comment as plain text, oldest first: "[YYYY-MM-DD author]: text".
+    Order matters — a later comment can override or descope an earlier one."""
+    comments, start = [], 0
+    while True:
+        data = _get(f"/rest/api/3/issue/{issue_key}/comment"
+                    f"?startAt={start}&maxResults=100&orderBy=created")
+        page = data.get("comments", [])
+        for c in page:
+            text = adf_to_text(c.get("body", {}))
+            if text:
+                author = c.get("author", {}).get("displayName", "Unknown")
+                comments.append(f"[{c.get('created', '')[:10]} {author}]: {text}")
+        start += len(page)
+        if not page or start >= data.get("total", 0):
+            return comments
 
 
 def get_linked_issues(issue_key: str) -> list[str]:
@@ -279,15 +290,41 @@ SUBTASK_NAMES = [
     "[Testing] Test case execution - E2E",
 ]
 
+# Left unassigned — the reviewer is someone other than the QA owner.
+REVIEW_SUBTASK = "[Testing] Test case review"
+
 # Subtask issue type ID for this Jira instance (confirmed from browser DevTools)
 _SUBTASK_ISSUETYPE_ID = "10008"
 
 
-def create_subtasks(parent_key: str) -> dict[str, str]:
+def find_user(query: str) -> dict:
+    """Resolve an email or display name to exactly one active Jira user. Raises if 0 or >1 match."""
+    users = [u for u in _get(f"/rest/api/3/user/search?query={requests.utils.quote(query)}")
+             if u.get("active") and u.get("accountType") == "atlassian"]
+    q = query.strip().lower()
+    exact = [u for u in users if q in ((u.get("emailAddress") or "").lower(),
+                                       (u.get("displayName") or "").lower())]
+    if len(exact) == 1:
+        return exact[0]
+    if len(users) == 1:
+        return users[0]
+    if not users:
+        raise ValueError(f"No Jira user matches '{query}'")
+    names = ", ".join(u.get("displayName", "?") for u in users[:10])
+    raise ValueError(f"'{query}' matches {len(users)} Jira users ({names}) — use the email")
+
+
+def assign_issue(issue_key: str, account_id: str) -> None:
+    _put(f"/rest/api/3/issue/{issue_key}/assignee", {"accountId": account_id})
+
+
+def create_subtasks(parent_key: str, assignee: dict | None = None) -> dict[str, str]:
     """
-    Create the 3 QA subtasks under a parent story, skipping any that already exist.
+    Create the QA subtasks under a parent story, skipping any that already exist.
     Uses numeric IDs for project, parent, and issuetype — matching the
     browser curl that works: POST /rest/api/2/issue with id-based fields.
+    If `assignee` (a Jira user dict) is given, every subtask except REVIEW_SUBTASK —
+    existing or new — is assigned to them; the review subtask is left as is.
     Returns {subtask_name: issue_key} for all subtasks (existing + newly created).
     """
     parent = get_issue(parent_key)
@@ -318,6 +355,12 @@ def create_subtasks(parent_key: str) -> dict[str, str]:
         result[name] = key
         print(f"  Created subtask: {key} — {name}")
         _transition_to_todo(key)
+    if assignee:
+        for name, key in result.items():
+            if name == REVIEW_SUBTASK:
+                continue
+            assign_issue(key, assignee["accountId"])
+            print(f"  Assigned {key} — {name} → {assignee.get('displayName')}")
     return result
 
 
@@ -415,6 +458,7 @@ def attach_file(issue_key: str, file_path: str) -> None:
             auth=_auth,
             headers={"X-Atlassian-Token": "no-check"},
             files={"file": (os.path.basename(file_path), f, "image/png")},
+            timeout=HTTP_TIMEOUT,
         ).raise_for_status()
     print(f"  Attached screenshot to {issue_key}")
 

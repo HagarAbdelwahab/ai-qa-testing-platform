@@ -73,6 +73,9 @@ async def stream(job_id: str):
                     )
                 }
                 break
+            elif job["status"] == "cancelled":
+                yield {"data": json.dumps({"type": "done", "status": "cancelled"})}
+                break
 
             await asyncio.sleep(0.35)
 

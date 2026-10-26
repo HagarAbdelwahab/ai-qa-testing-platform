@@ -297,12 +297,13 @@ def _open_bugs(epic_keys: list[str], story_keys: list[str]) -> list[dict]:
 
 def _draft_scope(epic: dict, stories: list[dict]) -> dict:
     """Ask Claude for objective + in/out scope, grounded only in the descriptions."""
+    import config
     from test_generator import _call_ai
     blocks = []
     if epic:
-        blocks.append(f"EPIC {epic['key']}: {epic['summary']}\n{epic.get('description', '')[:6000]}")
+        blocks.append(f"EPIC {epic['key']}: {epic['summary']}\n{epic.get('description', '')}")
     for s in stories:
-        blocks.append(f"STORY {s['key']}: {s['summary']}\n{s.get('description', '')[:3000]}")
+        blocks.append(f"STORY {s['key']}: {s['summary']}\n{s.get('description', '')}")
     prompt = f"""You are a senior QA lead writing the scope section of a Test Summary Report.
 
 Use ONLY the epic/story text below. Do not invent features, rules or exclusions.
@@ -315,7 +316,7 @@ Return ONLY a JSON object with:
 - "out_of_scope": bullets ONLY for items the text explicitly excludes or defers. Empty list if none are stated.
 
 No explanation, JSON only."""
-    raw = _call_ai(prompt, max_tokens=2000).strip()
+    raw = _call_ai(prompt, max_tokens=2000, model=config.ANALYSIS_MODEL, timeout=900).strip()
     m = re.search(r"\{.*\}", raw, re.S)
     if not m:
         raise ValueError(f"Scope draft was not JSON: {raw[:200]}")

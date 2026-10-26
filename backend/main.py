@@ -7,6 +7,7 @@ Serves the frontend and exposes four API groups:
   /api/execution — Test execution (run + SSE stream)
   /api/knowledge — Knowledge Base CRUD
 """
+import os
 import sys
 from pathlib import Path
 
@@ -23,9 +24,19 @@ from routers import admin, agents, execution, jira_proxy, knowledge, testware
 
 app = FastAPI(title="QA Testing Platform", version="1.0.0")
 
+# Same-origin requests (the bundled frontend) never need CORS. Only listed
+# origins may call the API from another site; a wildcard would let any page
+# open in the browser drive /api/admin/tokens or create AIO cases.
+# Override with a comma-separated CORS_ORIGINS when deployed.
+_cors_origins = [
+    o.strip()
+    for o in os.getenv("CORS_ORIGINS", "http://localhost:8000,http://127.0.0.1:8000").split(",")
+    if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )

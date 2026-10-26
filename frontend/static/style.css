@@ -1,35 +1,49 @@
-/* ── CSS custom properties — Merath green theme ──────────────────────────── */
+/* ── Merath theme — values taken from qa-merath.web.azm-dev.com computed styles ── */
+@font-face { font-family: almarai; font-weight: 400; font-display: swap; src: url("/static/fonts/Almarai-Regular.ttf"); }
+@font-face { font-family: almarai; font-weight: 700; font-display: swap; src: url("/static/fonts/Almarai-Bold.ttf"); }
+@font-face { font-family: almarai; font-weight: 900; font-display: swap; src: url("/static/fonts/Almarai-ExtraBold.ttf"); }
+
 :root {
-  --font-sans: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  --font-sans: almarai, "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "SF Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
 
   --border-radius-lg:   12px;
-  --border-radius-md:   7px;
-  --border-radius-sm:   4px;
+  --border-radius-md:   8px;
+  --border-radius-sm:   6px;
+
+  /* Merath palette */
+  --merath-primary:        #008d55;   /* buttons */
+  --merath-primary-border: #017346;
+  --merath-primary-hover:  #017346;
+  --merath-accent:         #00ad68;   /* active nav link */
+  --merath-header-bg:      #f2f9f6;
+  --merath-header-shadow:  0 4px 16px 0 rgba(204, 232, 221, 0.898);
+  --merath-nav-text:       #374151;
+  --nav-offset:            142px;   /* fixed header height + top gap */
 
   /* Backgrounds */
-  --color-background-page:      #edf5f0;
+  --color-background-page:      #fafbfb;
   --color-background-primary:   #ffffff;
-  --color-background-secondary: #f2f9f5;
-  --color-background-info:      rgba(27, 107, 69, 0.08);
-  --color-background-success:   rgba(27, 107, 69, 0.10);
+  --color-background-secondary: #f2f9f6;
+  --color-background-info:      rgba(0, 141, 85, 0.08);
+  --color-background-success:   rgba(0, 141, 85, 0.10);
   --color-background-warning:   rgba(184, 98, 13, 0.10);
   --color-background-danger:    rgba(210, 60, 60, 0.10);
 
   /* Borders */
-  --color-border-primary:   #bfd9cb;
-  --color-border-secondary: #cce0d5;
-  --color-border-tertiary:  #daeae0;
-  --color-border-info:      rgba(27, 107, 69, 0.28);
-  --color-border-success:   rgba(27, 107, 69, 0.32);
+  --color-border-primary:   #cce8dd;
+  --color-border-secondary: #dbece4;
+  --color-border-tertiary:  #e5e7eb;
+  --color-border-info:      rgba(0, 141, 85, 0.28);
+  --color-border-success:   rgba(0, 141, 85, 0.32);
   --color-border-warning:   rgba(184, 98, 13, 0.30);
   --color-border-danger:    rgba(210, 60, 60, 0.30);
 
   /* Text */
-  --color-text-primary:   #0f2218;
-  --color-text-secondary: #4c6858;
-  --color-text-info:      #1b6b45;
-  --color-text-success:   #1b6b45;
+  --color-text-primary:   #0d2626;
+  --color-text-secondary: #76818c;
+  --color-text-info:      #008d55;
+  --color-text-success:   #008d55;
   --color-text-danger:    #be3434;
   --color-text-warning:   #9a5608;
 }
@@ -48,72 +62,66 @@ html, body {
 a { color: var(--color-text-info); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-/* ── Top nav — floating pill (Merath style) ──────────────────────────────── */
+/* ── Top nav — Merath header card ─────────────────────────────────────────── */
 .topnav {
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 0 8px 0 16px;
-  height: 44px;
-  margin: 8px 16px 0;
-  border-radius: 40px;
-  background: #ffffff;
-  border: 1px solid #daeae0;
-  box-shadow: 0 4px 20px rgba(27, 107, 69, 0.10), 0 1px 3px rgba(27, 107, 69, 0.06);
+  gap: 8px;
+  padding: 24px;
   position: fixed;
-  top: 8px;
-  left: 16px;
-  right: 16px;
+  top: 20px;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: calc(100% - 40px);
+  max-width: 1280px;
+  border-radius: 24px;
+  background: var(--merath-header-bg);
+  box-shadow: var(--merath-header-shadow);
   z-index: 100;
-  transition: transform 0.25s ease;
-}
-.topnav.nav-hidden {
-  transform: translateY(-70px);
 }
 
-body { padding-top: 66px; }
+body { padding-top: var(--nav-offset); }
 
-.topnav-brand {
-  font-size: 14px;
-  font-weight: 700;
-  color: #1b6b45;
-  margin-right: 14px;
-  letter-spacing: -0.3px;
-  white-space: nowrap;
-}
-.topnav-brand span { color: var(--color-text-primary); font-weight: 500; }
+.topnav-brand { display: flex; align-items: center; flex-shrink: 0; }
+.topnav-brand img { height: 44px; width: auto; display: block; }
+.topnav-brand:hover { text-decoration: none; }
+
+.topnav-links { display: flex; justify-content: center; align-items: center; gap: 8px; flex: 1; padding: 0 32px; }
 
 .topnav-link {
-  font-size: 12px;
-  padding: 5px 16px;
-  border-radius: 40px;
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  border: 1px solid transparent;
-  background: none;
+  font-size: 16px;
   font-weight: 500;
-  transition: background .15s, color .15s, border-color .15s;
+  line-height: 24px;
+  padding: 12px 24px;
+  border-radius: 8px;
+  color: var(--merath-nav-text);
+  background: transparent;
+  cursor: pointer;
+  transition: background .15s, color .15s;
 }
-.topnav-link:hover {
-  background: var(--color-background-secondary);
-  color: var(--color-text-primary);
-  text-decoration: none;
-}
-.topnav-link.active {
-  background: #ffffff;
-  border-color: var(--color-border-tertiary);
-  color: var(--color-text-primary);
-  text-decoration: none;
-  font-weight: 600;
-  box-shadow: 0 1px 4px rgba(27, 107, 69, 0.08);
-}
+.topnav-link:hover { color: var(--merath-accent); text-decoration: none; }
+.topnav-link.active { background: #ffffff; color: var(--merath-accent); text-decoration: none; }
 
-.topnav-spacer { flex: 1; }
+/* Merath primary button */
+.merath-btn {
+  background: var(--merath-primary);
+  border: 1px solid var(--merath-primary-border);
+  color: #ffffff;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  border-radius: 16px;
+  cursor: pointer;
+}
+.merath-btn:hover:not(:disabled) { background: var(--merath-primary-hover); }
+
+.topnav-spacer { display: none; }
 
 .config-badge {
-  font-size: 11px;
-  padding: 4px 12px;
-  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: 16px;
   border: 1px solid var(--color-border-warning);
   color: var(--color-text-warning);
   background: var(--color-background-warning);
@@ -128,11 +136,11 @@ body { padding-top: 66px; }
 
 /* ── Layout spacers ──────────────────────────────────────────────────────── */
 .dash { margin-top: 14px; }
-.page { padding: 16px 20px; margin-top: 14px; min-height: calc(100vh - 82px); }
+.page { padding: 16px 20px; margin-top: 14px; min-height: calc(100vh - 160px); }
 
 /* ── Subtle card shadows ─────────────────────────────────────────────────── */
 .card, .kb-card, .setup-card, .section-card, .admin-card, .output-panel {
-  box-shadow: 0 1px 6px rgba(27, 107, 69, 0.07);
+  box-shadow: 0 1px 6px rgba(204, 232, 221, 0.6);
 }
 
 /* ── Notification banner ─────────────────────────────────────────────────── */
@@ -147,3 +155,6 @@ body { padding-top: 66px; }
   color: var(--color-text-warning);
 }
 .banner.show { display: flex; align-items: center; gap: 8px; }
+
+/* ── Page containers aligned with the header card (matches Agents .page) ── */
+.dash, .kc-layout { width: calc(100% - 40px); max-width: 1280px; margin-left: auto; margin-right: auto; }

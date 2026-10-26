@@ -35,16 +35,20 @@ def add_log(job_id: str, message: str) -> None:
 
 def complete_job(job_id: str, result=None) -> None:
     with _lock:
-        if job_id in _jobs:
-            _jobs[job_id]["status"] = "completed"
-            _jobs[job_id]["result"] = result
+        job = _jobs.get(job_id)
+        # A cancelled job stays cancelled: the worker may still finish after the
+        # user pressed Cancel, and must not flip the status back.
+        if job and job["status"] != "cancelled":
+            job["status"] = "completed"
+            job["result"] = result
 
 
 def fail_job(job_id: str, error: str) -> None:
     with _lock:
-        if job_id in _jobs:
-            _jobs[job_id]["status"] = "failed"
-            _jobs[job_id]["error"] = error
+        job = _jobs.get(job_id)
+        if job and job["status"] != "cancelled":
+            job["status"] = "failed"
+            job["error"] = error
 
 
 def cancel_job(job_id: str) -> bool:
@@ -60,6 +64,25 @@ def cancel_job(job_id: str) -> bool:
 def is_cancelled(job_id: str) -> bool:
     job = _jobs.get(job_id)
     return job is not None and job["status"] == "cancelled"
+
+
+class JobCancelled(Exception):
+    """Raised by a worker that stops early because its job was cancelled."""
+
+
+def current_job_cancelled() -> bool:
+    """True when the job bound to the calling thread (via JobCapture) was cancelled.
+
+    Lets agent code check for cancellation without being passed a job id.
+    """
+    job_id = _current_job.get()
+    return bool(job_id) and is_cancelled(job_id)
+
+
+def raise_if_cancelled(step: str = "") -> None:
+    """Stop the calling job between steps when the user cancelled it."""
+    if current_job_cancelled():
+        raise JobCancelled(f"Job cancelled{' before ' + step if step else ''}.")
 
 
 # ── stdout/stderr routing ─────────────────────────────────────────────────────

@@ -1,18 +1,38 @@
-# secrets & local state
+# Secrets
 .env
 .env.*
 !.env.example
-*.db
-backend/.aio_browser_state.json
-backend/agent/.state/
+
+# Browser sessions / captured auth (cookies, saved logins, AIO tokens)
 .playwright-session/
 .playwright-mcp/
-.claude/settings.local.json
+backend/.aio_browser_state.json
+
+# Local data (SQLite holds runtime AIO token overrides)
+backend/data/
+*.db
+
+# Per-story agent state
+backend/agent/.state/
+
+# Generated reports
 reports/
 
-# python / tooling
+# Personal Claude Code settings
+.claude/settings.local.json
+
+# Python
 .venv/
 __pycache__/
 *.pyc
 .pytest_cache/
 .DS_Store
+
+# Local backups and tool logs
+*.bak
+*.bak-*
+*.bak.*
+.playwright-cli/
+
+# Publish worktree (sanitized public branch checkout)
+.publish-worktree/

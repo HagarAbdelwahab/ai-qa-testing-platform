@@ -4,9 +4,13 @@ Tokens expire ~45 min; call aio_client.refresh_tokens() or update .env when need
 """
 import requests
 import config
-from retry_utils import retry_on_429
+from retry_utils import retry_on_429, get_with_retry
 
 _base = config.AIO_BASE_URL
+
+# Every AIO call gets a timeout: a hung socket would otherwise block the caller
+# forever, and kickoff holds bridge._gen_lock, which stalls every later job.
+HTTP_TIMEOUT = 60  # seconds
 
 
 def _headers() -> dict:
@@ -23,7 +27,7 @@ def _headers() -> dict:
 
 
 def _get(path: str) -> dict:
-    r = requests.get(f"{_base}/{path}", headers=_headers())
+    r = get_with_retry(f"{_base}/{path}", headers=_headers())
     try:
         d = r.json()
         if r.status_code in (401, 403):
@@ -33,22 +37,31 @@ def _get(path: str) -> dict:
         return {"_raw": r.text[:300], "_auth_failed": r.status_code in (401, 403)}
 
 
-def _refresh_and_retry(fn):
-    """Refresh AIO tokens then retry fn() once on auth/server error."""
+def _refresh_and_retry(fn, response=None):
+    """Refresh AIO tokens then retry fn() once on auth/server error.
+
+    Only the refresh is guarded: an error raised by the retried fn() propagates
+    unchanged, with its own response, instead of being masked.
+    """
     try:
         from token_refresher import refresh_tokens
-        if refresh_tokens():
-            return fn()
-    except Exception:
-        pass
-    raise requests.HTTPError("AIO call failed and token refresh did not help")
+        refreshed = refresh_tokens()
+    except Exception as exc:
+        raise requests.HTTPError(
+            f"AIO call failed and token refresh raised: {exc}", response=response
+        ) from exc
+    if not refreshed:
+        raise requests.HTTPError(
+            "AIO call failed and token refresh did not help", response=response
+        )
+    return fn()
 
 
 def _post(path: str, body: dict) -> dict:
     def _do():
-        r = requests.post(f"{_base}/{path}", headers=_headers(), json=body)
+        r = requests.post(f"{_base}/{path}", headers=_headers(), json=body, timeout=HTTP_TIMEOUT)
         if r.status_code in (401, 403, 500):
-            return _refresh_and_retry(lambda: _do_raw())
+            return _refresh_and_retry(_do_raw, r)
         r.raise_for_status()
         try:
             return r.json()
@@ -56,7 +69,7 @@ def _post(path: str, body: dict) -> dict:
             return {"_raw": r.text[:300]}
 
     def _do_raw():
-        r = requests.post(f"{_base}/{path}", headers=_headers(), json=body)
+        r = requests.post(f"{_base}/{path}", headers=_headers(), json=body, timeout=HTTP_TIMEOUT)
         r.raise_for_status()
         return r.json() if r.text else {}
 
@@ -65,9 +78,9 @@ def _post(path: str, body: dict) -> dict:
 
 def _put(path: str, body: dict) -> dict:
     def _do():
-        r = requests.put(f"{_base}/{path}", headers=_headers(), json=body)
+        r = requests.put(f"{_base}/{path}", headers=_headers(), json=body, timeout=HTTP_TIMEOUT)
         if r.status_code in (401, 403, 500):
-            return _refresh_and_retry(lambda: _do_raw())
+            return _refresh_and_retry(_do_raw, r)
         r.raise_for_status()
         try:
             return r.json()
@@ -75,7 +88,7 @@ def _put(path: str, body: dict) -> dict:
             return {"_raw": r.text[:300]}
 
     def _do_raw():
-        r = requests.put(f"{_base}/{path}", headers=_headers(), json=body)
+        r = requests.put(f"{_base}/{path}", headers=_headers(), json=body, timeout=HTTP_TIMEOUT)
         r.raise_for_status()
         return r.json() if r.text else {}
 
@@ -321,20 +334,39 @@ def scan_test_cases(project_id: int, project_key: str | None = None,
     return found
 
 
-def get_test_cases_for_story(project_id: int, jira_issue_numeric_id: int,
-                             refresh: bool = False) -> list[dict]:
-    """Fetch all test cases linked to a Jira story.
+def get_test_cases_for_story(project_id: int, jira_issue_numeric_id: int) -> list[dict]:
+    """Fetch the test cases linked to a Jira story — live, one call.
 
+    Uses the traceability endpoint (the only per-story lookup that works on this
+    install; `?requirementID=` and `requirement/{id}/testcase` return 500).
     Raises AioUnavailable if AIO cannot be reached — callers must not
     interpret failure as "no existing cases".
     """
-    cases = scan_test_cases(project_id, refresh=refresh)
-    return [c for c in cases if jira_issue_numeric_id in c["requirement_ids"]]
+    path = f"project/{project_id}/traceability/requirement/{jira_issue_numeric_id}"
+    d = _get(path)
+    if isinstance(d, dict) and _is_token_error(d) and _try_refresh():
+        d = _get(path)
+    if not isinstance(d, list):
+        raise AioUnavailable(f"AIO traceability lookup failed: {d.get('ERROR_MESSAGE') or d.get('_raw') or d}")
+    cases = []
+    for row in d:
+        test = (row.get("testRequirementLink") or {}).get("test") or {}
+        detail = test.get("detail") or {}
+        if detail.get("key"):
+            cases.append({
+                "key": detail["key"],
+                "id": test.get("ID"),
+                "title": (detail.get("title") or "").strip(),
+                "requirement_ids": [r.get("requirementID") for r in (detail.get("requirements") or [])
+                                    if r.get("requirementID")],
+            })
+    return cases
 
 
 def delete_test_case(project_id: int, tc_key: str) -> bool:
     """Permanently delete a test case from AIO."""
-    r = requests.delete(f"{_base}/project/{project_id}/testcase/{tc_key}", headers=_headers())
+    r = requests.delete(f"{_base}/project/{project_id}/testcase/{tc_key}", headers=_headers(),
+                        timeout=HTTP_TIMEOUT)
     ok = r.status_code in (200, 204)
     if ok:
         _case_scan_cache.pop(project_id, None)

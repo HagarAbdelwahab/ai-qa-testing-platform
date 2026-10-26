@@ -4,19 +4,22 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>QA Command Center</title>
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <link rel="stylesheet" href="/static/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/marked@18.1.1/lib/marked.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.17/dist/purify.min.js"></script>
+  <link rel="icon" href="/static/img/favicon.ico"/>
+  <link rel="stylesheet" href="/static/style.css?v=merath2"/>
   <script src="/static/nav.js" defer></script>
+  <script src="/static/cases-to-add.js?v=drafts1" defer></script>
   <style>
     /* ── Dashboard layout (from original design) ───────────────────────── */
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:var(--font-sans)}
-    .dash{display:grid;grid-template-columns:260px 1fr;gap:12px;padding:12px;min-height:600px;align-items:start}
-    .sidebar{display:flex;flex-direction:column;gap:10px;position:sticky;top:66px;align-self:start}
+    .dash{display:grid;grid-template-columns:240px minmax(0,1fr);gap:12px;padding:12px 0;min-height:600px;align-items:start}
+    .sidebar{display:flex;flex-direction:column;gap:10px;position:sticky;top:var(--nav-offset);align-self:start}
     .main{display:flex;flex-direction:column;gap:10px}
     .card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:14px}
     .card-header{font-size:11px;font-weight:500;color:var(--color-text-secondary);letter-spacing:.05em;text-transform:uppercase;margin-bottom:10px}
-    .metric-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;position:sticky;top:66px;z-index:10;background:var(--color-background-page);padding:6px 0;margin-bottom:2px}
+    .metric-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;position:sticky;top:var(--nav-offset);z-index:10;background:var(--color-background-page);padding:6px 0;margin-bottom:2px}
     .metric{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px 12px}
     .metric-label{font-size:11px;color:var(--color-text-secondary);margin-bottom:4px}
     .metric-val{font-size:22px;font-weight:500;color:var(--color-text-primary)}
@@ -36,8 +39,8 @@
     .b-ready{background:var(--color-background-success);color:var(--color-text-success)}
     .b-pending{background:var(--color-background-warning);color:var(--color-text-warning)}
     .b-progress{background:var(--color-background-info);color:var(--color-text-info)}
-    .agent-btn{font-size:11px;padding:5px 13px;border-radius:10px;border:1px solid #daeae0;background:#ffffff;color:#1b6b45;cursor:pointer;white-space:nowrap;font-weight:500;box-shadow:0 1px 3px rgba(27,107,69,0.07);transition:background .15s,border-color .15s}
-    .agent-btn:hover{background:#f4f9f6;border-color:#b8d9c5}
+    .agent-btn{font-size:11px;padding:6px 13px;border-radius:12px;border:1px solid var(--color-border-primary);background:#ffffff;color:var(--merath-primary);font-family:var(--font-sans);cursor:pointer;white-space:nowrap;font-weight:500;box-shadow:0 1px 3px rgba(0,141,85,0.07);transition:background .15s,border-color .15s}
+    .agent-btn:hover{background:var(--color-background-secondary);border-color:var(--merath-primary)}
     .member-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--color-border-tertiary)}
     .member-row:last-child{border-bottom:none}
     @keyframes avatar-glow{0%,100%{box-shadow:0 0 0 2px var(--ag,#1a73e8),0 2px 8px rgba(0,0,0,0.15)}50%{box-shadow:0 0 0 3.5px var(--ag,#1a73e8),0 4px 14px rgba(0,0,0,0.22)}}
@@ -56,9 +59,10 @@
     .nav-dot{width:6px;height:6px;border-radius:50%}
     .status-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;font-size:12px;border-bottom:0.5px solid var(--color-border-tertiary)}
     .status-row:last-child{border-bottom:none}
-    .action-btn{width:100%;padding:12px 16px;border-radius:14px;border:1px solid #daeae0;background:#ffffff;color:#1b6b45;cursor:pointer;font-size:13px;font-weight:500;text-align:left;margin-bottom:8px;display:flex;align-items:center;gap:8px;box-shadow:0 1px 3px rgba(27,107,69,0.07);transition:background .15s,border-color .15s}
-    .action-btn:hover{background:#f4f9f6;border-color:#b8d9c5}
-    .action-btn.primary{border-color:#1b6b45;color:#1b6b45;font-weight:600}
+    .action-btn{width:100%;padding:12px 16px;border-radius:16px;border:1px solid var(--color-border-primary);background:#ffffff;color:var(--merath-primary);cursor:pointer;font-family:var(--font-sans);font-size:14px;font-weight:700;text-align:left;margin-bottom:8px;display:flex;align-items:center;gap:8px;box-shadow:0 1px 3px rgba(0,141,85,0.07);transition:background .15s,border-color .15s}
+    .action-btn:hover{background:var(--color-background-secondary);border-color:var(--merath-primary)}
+    .action-btn.primary{background:var(--merath-primary);border-color:var(--merath-primary-border);color:#fff;justify-content:center}
+    .action-btn.primary:hover:not(:disabled){background:var(--merath-primary-hover)}
     .action-btn:disabled{opacity:.45;cursor:not-allowed}
 
     /* ── Agent / kickoff overlays ───────────────────────────────────────── */
@@ -98,16 +102,12 @@
 
 <!-- Top nav -->
 <nav class="topnav">
-  <a href="/" class="topnav-brand" style="text-decoration:none;display:flex;align-items:center;gap:8px">
-    <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="3" y="10" width="12" height="19" rx="6" fill="#2d7a5e" transform="rotate(-12 9 19)"/>
-      <rect x="14" y="3" width="14" height="13" rx="6" fill="#5cb87a"/>
-    </svg>
-    <span style="font-family:var(--font-sans);font-size:15px;font-weight:700;color:#1b6b45;letter-spacing:-0.2px">منصة التركات</span>
-  </a>
-  <a href="/" class="topnav-link active">Dashboard</a>
-  <a href="/agents" class="topnav-link">Agents</a>
-  <a href="/knowledge-base" class="topnav-link">Knowledge Center</a>
+  <a href="/" class="topnav-brand"><img src="/static/img/merath-logo.svg" alt="منصة التركات"/></a>
+  <div class="topnav-links">
+    <a href="/" class="topnav-link active">Dashboard</a>
+    <a href="/agents" class="topnav-link">Agents</a>
+    <a href="/knowledge-base" class="topnav-link">Knowledge Center</a>
+  </div>
   <div class="topnav-spacer"></div>
   <span class="config-badge" id="config-badge">checking…</span>
 </nav>
@@ -166,6 +166,9 @@
           <span style="font-size:11px;color:var(--color-text-secondary)">AIO Cycle:</span>
           <input id="home-cycle" placeholder="e.g. Squad-a-sprint-35"
             style="background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);border-radius:4px;color:var(--color-text-primary);font-size:12px;padding:4px 8px;outline:none;width:190px"/>
+          <span style="font-size:11px;color:var(--color-text-secondary)">QA:</span>
+          <input id="home-assignee" placeholder="QA assignee email"
+            style="background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);border-radius:4px;color:var(--color-text-primary);font-size:12px;padding:4px 8px;outline:none;width:170px"/>
           <button class="agent-btn" onclick="loadCurrentSprint()" title="Refresh">↻</button>
         </div>
       </div>
@@ -232,7 +235,7 @@
             <div class="member-stat">15 / 6</div>
           </div>
           <div class="member-row">
-            <img class="avatar" style="--ag:#1b6b45" src="https://api.dicebear.com/9.x/avataaars/svg?seed=QA4&backgroundColor=c0efda&backgroundType=gradientLinear" alt="QA4"/>
+            <img class="avatar" style="--ag:#008d55" src="https://api.dicebear.com/9.x/avataaars/svg?seed=QA4&backgroundColor=c0efda&backgroundType=gradientLinear" alt="QA4"/>
             <div class="member-name">QA4</div>
             <div style="flex:1;display:flex;flex-direction:column;gap:3px">
               <div class="bar-wrap"><div class="bar-fill" style="width:53%"></div></div>
@@ -341,7 +344,7 @@ async function checkConfig() {
       badge.textContent = `${missing} env vars missing`;
       banner.classList.add('show');
       document.getElementById('cfg-banner-msg').textContent =
-        `${missing} required env vars missing in .env. Configure them to enable agent features.`;
+        `${missing} required env vars missing in testing-platform/.env. Configure them to enable agent features.`;
     } else {
       badge.textContent = 'Connected';
       badge.classList.add('ok');
@@ -474,9 +477,9 @@ function renderHomeStories(stories) {
     </tr></thead><tbody>`;
   for(const s of stories){
     html += `<tr id="hrow-${s.key}" style="cursor:default">
-      <td style="padding:8px 10px"><a class="ticket-id" href="${jiraBaseUrl}/browse/${esc(s.key)}" target="_blank" rel="noopener" style="text-decoration:none">${esc(s.key)}</a></td>
-      <td style="padding:8px 10px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--color-text-primary)">${esc(s.summary)}</td>
-      <td style="padding:8px 10px"><span class="badge ${homeStatusChip(s.status)}">${esc(s.status)}</span></td>
+      <td style="padding:8px 10px;white-space:nowrap"><a class="ticket-id" href="${jiraBaseUrl}/browse/${esc(s.key)}" target="_blank" rel="noopener" style="text-decoration:none">${esc(s.key)}</a></td>
+      <td style="padding:8px 10px;max-width:0;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--color-text-primary)">${esc(s.summary)}</td>
+      <td style="padding:8px 10px;white-space:nowrap"><span class="badge ${homeStatusChip(s.status)}">${esc(s.status)}</span></td>
       <td style="padding:8px 10px;font-size:11px;color:var(--color-text-secondary)">${(s.fe||[]).join(', ')||'—'}</td>
       <td style="padding:8px 10px;font-size:11px;color:var(--color-text-secondary)">${(s.be||[]).join(', ')||'—'}</td>
       <td style="padding:8px 10px;font-size:11px;color:var(--color-text-secondary)">${(s.qa||[]).join(', ')||'—'}</td>
@@ -555,10 +558,17 @@ function homeHandleDone(msg) {
   if(msg.status === 'cancelled'){ homePanelDone(false, null, true); return; }
   if(msg.status !== 'completed'){ homePanelDone(false, msg.error || 'Unknown error'); return; }
   const res = msg.result || {};
+  if(res.drafts){
+    renderDrafts(document.getElementById('home-panel-result'), res.drafts,
+                 res.cycle || document.getElementById('home-cycle').value.trim());
+    homePanelDone(true); return;
+  }
   document.getElementById('home-panel-log').style.display = 'none';
   if(res.review){
     document.getElementById('home-panel-result').innerHTML =
-      `<div class="review-out">${marked.parse(res.review)}</div>`;
+      `<div class="review-out">${DOMPurify.sanitize(marked.parse(res.review))}</div>`;
+    renderCasesToAdd(document.getElementById('home-panel-result'), res.issue_key, res.cases_to_add,
+                     document.getElementById('home-cycle').value.trim());
   } else if(res.results){
     let html = '';
     for(const [sk, subs] of Object.entries(res.results)){
@@ -592,8 +602,10 @@ async function homeRunReview(key) {
 }
 
 async function homeRunSubtasks(key) {
+  const assignee = document.getElementById('home-assignee').value.trim();
+  if(!assignee){ alert('Enter the QA assignee next to the sprint header first'); return; }
   openHomePanel('Subtasks', key);
-  const r = await fetch('/api/agents/create-subtasks', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({issue_keys:key})});
+  const r = await fetch('/api/agents/create-subtasks', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({issue_keys:key,qa_assignee:assignee})});
   const d = await r.json();
   if(!r.ok||d.error){ homePanelDone(false, d.error||r.statusText); return; }
   homeStreamJob(d.job_id);
@@ -795,7 +807,7 @@ async function startStreamingJob(endpoint, payload, type) {
     } else if (msg.type === 'done') {
       es.close();
       if (msg.status === 'completed') {
-        onJobComplete(type);
+        onJobComplete(type, msg.result);
       } else {
         document.getElementById('modalBody').innerHTML +=
           `<div class="error-box">Agent failed: ${esc(msg.error || 'unknown error')}</div>`;
@@ -830,8 +842,21 @@ function appendLog(el, text) {
   el.scrollTop = el.scrollHeight;
 }
 
-function onJobComplete(type) {
+function onJobComplete(type, result) {
   document.getElementById('modalBody').querySelector('.loading-spinner')?.parentElement?.remove();
+  if (type === 'kickoff' && result && result.drafts) {
+    // Kickoff only drafts: the cases reach AIO from the review form, not before.
+    const body = document.getElementById('modalBody');
+    body.insertAdjacentHTML('beforeend', `<div class="result-box" style="margin-top:10px">
+      <div style="font-size:11px;font-weight:500;color:var(--color-text-success)">✓ Test cases drafted — review and add the ones you want to AIO</div></div>`);
+    renderDrafts(body, result.drafts, result.cycle);
+    body.insertAdjacentHTML('beforeend', `<button class="action-btn" style="margin-top:10px" onclick="closeAgent()">Close</button>`);
+    ['tp-cases','tp-cycle'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.textContent = 'Review'; el.className = 'badge b-progress'; }
+    });
+    return;
+  }
   document.getElementById('modalBody').innerHTML +=
     `<div class="result-box" style="margin-top:10px">
       <div style="font-size:11px;font-weight:500;color:var(--color-text-success);margin-bottom:4px">

@@ -1,11 +1,10 @@
 Trigger the QA testware preparation agent for one or more Jira stories.
 
 ## What this does
-1. Reads the Jira story title and description
-2. Generates test cases with Claude AI
-3. Creates AIO test cases, test set, and links to your cycle
-4. Writes a Playwright spec skeleton
-5. Creates Jira QA subtasks and marks Test Case Writing as Done
+1. Reads the Jira story: description, every comment (oldest first), linked tickets, context-repo rules
+2. Drafts test cases with Claude — nothing is written to AIO yet
+3. You review the draft; only the approved cases are created in AIO, linked to the story,
+   published, and added to the story's test set and the cycle
 
 ## How to use
 
@@ -32,17 +31,24 @@ GET {platform_url}/api/testware/stream/{job_id}
 
 Report each log line to the user as it arrives so they can see real-time progress.
 
-When done, summarize:
-- Which AIO test cases were created
-- Which Jira subtasks were created
-- Where the Playwright spec was written
+The `done` event's `result.drafts` holds, per story, `{issue_key, story_title, cases, existing}`
+(`cases` excludes titles AIO already has). Show the cases as a numbered list per story and WAIT
+for the user to approve or drop items. Then, per story, send only the approved cases:
+
+```
+POST {platform_url}/api/agents/add-cases
+{"issue_key": "TAT-XXXX", "cycle_name": "cycle-name-here", "cases": [ ...approved case objects... ]}
+```
+
+Stream `GET {platform_url}/api/agents/stream/{job_id}`. When done, summarize the AIO keys in
+`result.added_cases` per story. Never call add-cases without the user's approval.
 
 ## Example invocation
 
 User: /project:testware-prep
 You: What is the cycle name and which Jira issue keys should I process?
 User: cycle squad-a-sprint-35, issues TAT-5800 TAT-5801
-You: [call API, stream logs, report results]
+You: [call kickoff, stream logs, show drafts, wait for approval, call add-cases, report AIO keys]
 
 ## Platform URL
 

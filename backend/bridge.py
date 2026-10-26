@@ -1,6 +1,6 @@
 """
 Agent bridge — imports directly from backend/agent/ (fully self-contained).
-No dependency on the external tarekat_ineteg_MCP project.
+No dependency on the external MCP project.
 """
 import sys
 import threading
@@ -83,13 +83,15 @@ def run_kickoff(job_id: str, issues: list[str], cycle_name: str, knowledge_conte
 
                     _tg.generate_test_cases = _gen_with_kb
 
+                # Draft only: the UI shows the cases for review, and the approved ones go
+                # to AIO through /api/agents/add-cases (cmd_add_cases).
                 try:
-                    _agent.cmd_kickoff(issues, cycle_name)
+                    drafts = _agent.cmd_draft(issues)
                 finally:
                     if knowledge_context:
                         _tg.generate_test_cases = _original
 
-        complete_job(job_id, {"issues": issues, "cycle": cycle_name})
+        complete_job(job_id, {"issues": issues, "cycle": cycle_name, "drafts": drafts})
     except Exception as exc:
         fail_job(job_id, str(exc))
 
@@ -209,16 +211,44 @@ def run_review_story(job_id: str, issue_key: str) -> None:
         fail_job(job_id, str(exc))
 
 
-def run_create_subtasks(job_id: str, issue_keys: list[str]) -> None:
+def run_reconcile_story(job_id: str, issue_key: str, be_refs: str = "", fe_refs: str = "",
+                        environment: str = "") -> None:
+    from jobs import JobCapture, complete_job, fail_job
+    from agent import reconciler
+    try:
+        report = None
+        with JobCapture(job_id):
+            report = reconciler.generate_reconciliation(issue_key, be_refs, fe_refs, environment)
+        report, cases = reconciler.split_cases(report)
+        # "review" key: the dashboard renders it as markdown, same as a story review.
+        complete_job(job_id, {"issue_key": issue_key, "review": report, "cases_to_add": cases})
+    except Exception as exc:
+        fail_job(job_id, str(exc))
+
+
+def run_create_subtasks(job_id: str, issue_keys: list[str], qa_assignee: str) -> None:
     from jobs import JobCapture, complete_job, fail_job
     try:
         all_results = {}
         with JobCapture(job_id):
+            assignee = _jira.find_user(qa_assignee)
+            print(f"  QA assignee: {assignee.get('displayName')} (review subtask stays unassigned)")
             for key in issue_keys:
                 print(f"\n── {key} ──────────────────────────")
-                result = _jira.create_subtasks(key)
+                result = _jira.create_subtasks(key, assignee)
                 all_results[key] = result
         complete_job(job_id, {"results": all_results})
+    except Exception as exc:
+        fail_job(job_id, str(exc))
+
+
+def run_add_cases(job_id: str, issue_key: str, cases: list[dict], cycle_name: str) -> None:
+    from jobs import JobCapture, complete_job, fail_job
+    try:
+        with _gen_lock:
+            with JobCapture(job_id):
+                added = _agent.cmd_add_cases(issue_key, cases, cycle_name)
+        complete_job(job_id, {"issue_key": issue_key, "added_cases": added})
     except Exception as exc:
         fail_job(job_id, str(exc))
 

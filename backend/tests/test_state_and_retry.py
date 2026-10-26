@@ -220,98 +220,53 @@ class TestSubtaskCreation:
                 f"issuetype must use id not name, got: {issuetype}"
             assert issuetype["id"] == "10008"
 
-    def test_creates_three_subtasks_with_correct_summaries(self):
+    def test_creates_subtasks_with_correct_summaries(self):
         import agent.jira_client as jc
         captured = []
         with patch.object(jc, "_get", side_effect=self._fake_get), \
              patch.object(jc, "_post", side_effect=self._fake_post(captured)):
             result = jc.create_subtasks("TAT-5720")
         summaries = [c["body"]["fields"]["summary"] for c in captured]
-        assert summaries == ["Test Case Writing", "Test Case Review", "Test Execution"]
-        assert len(result) == 3
+        assert summaries == [
+            "[Testing] Test case writing",
+            "[Testing] Test case review",
+            "[Testing] Test case execution - mocks",
+            "[Testing] Test case execution - E2E",
+        ]
+        assert summaries == jc.SUBTASK_NAMES
+        assert len(result) == 4
 
 
-# ── 5. Gemini model fallback on 429 ──────────────────────────────────────────
+# ── 5. Claude Code CLI call ───────────────────────────────────────────────────
 
-class TestGeminiModelFallback:
-    """When gemini-2.0-flash is exhausted (429), _call_gemini should fall back
-    to gemini-1.5-flash before giving up."""
+class TestClaudeCodeCli:
+    """_call_claude_code_cli is the fallback provider when no Anthropic key is set."""
 
-    def _make_urllib_429(self, body: dict):
-        import urllib.error, urllib.request
-        import io
-        encoded = json.dumps(body).encode()
-        return urllib.error.HTTPError(
-            url="https://generativelanguage.googleapis.com/...",
-            code=429,
-            msg="Too Many Requests",
-            hdrs={},
-            fp=io.BytesIO(encoded),
-        )
+    def _done(self, returncode=0, stdout="ok", stderr=""):
+        return MagicMock(returncode=returncode, stdout=stdout, stderr=stderr)
 
-    def _good_response(self):
-        return json.dumps({
-            "candidates": [{"content": {"parts": [{"text": "ok"}]}}]
-        }).encode()
-
-    def test_uses_2_0_flash_first(self):
+    def test_raises_when_cli_missing(self):
+        import pytest
         import agent.test_generator as tg
-        called_urls = []
+        with patch("shutil.which", return_value=None):
+            with pytest.raises(EnvironmentError, match="not found"):
+                tg._call_claude_code_cli("hi")
 
-        def fake_urlopen(req, timeout=60):
-            called_urls.append(req.full_url)
-            class R:
-                def __enter__(self): return self
-                def __exit__(self, *a): pass
-                def read(self): return self._good_response()
-            r = R()
-            r._good_response = self._good_response
-            return r
-
-        with patch("agent.config.ANTHROPIC_API_KEY", ""), \
-             patch.dict("os.environ", {"GEMINI_API_KEY": "testkey"}), \
-             patch("urllib.request.urlopen", fake_urlopen):
-            tg._call_ai("hi", max_tokens=10)
-
-        assert any("gemini-2.0-flash" in u for u in called_urls), \
-            "Should try gemini-2.0-flash first"
-
-    def test_falls_back_to_1_5_flash_when_2_0_429s(self):
+    def test_strips_placeholder_key_and_returns_stdout(self):
         import agent.test_generator as tg
-        import urllib.error
-        called_urls = []
+        with patch("shutil.which", return_value="/usr/bin/claude"), \
+             patch.dict("os.environ", {"ANTHROPIC_API_KEY": "<placeholder>"}), \
+             patch("subprocess.run", return_value=self._done(stdout=" answer \n")) as run:
+            assert tg._call_claude_code_cli("hi", timeout=7) == "answer"
+        kwargs = run.call_args.kwargs
+        assert "ANTHROPIC_API_KEY" not in kwargs["env"]
+        assert kwargs["timeout"] == 7
+        assert kwargs["input"] == "hi"
 
-        def fake_urlopen(req, timeout=60):
-            called_urls.append(req.full_url)
-            if "gemini-2.0-flash" in req.full_url:
-                raise self._make_urllib_429({"error": {"status": "RESOURCE_EXHAUSTED"}})
-            class R:
-                def __enter__(self): return self
-                def __exit__(self, *a): pass
-                def read(self_): return self._good_response()
-            return R()
-
-        with patch("agent.config.ANTHROPIC_API_KEY", ""), \
-             patch.dict("os.environ", {"GEMINI_API_KEY": "testkey"}), \
-             patch("urllib.request.urlopen", fake_urlopen):
-            result = tg._call_ai("hi", max_tokens=10)
-
-        assert any("gemini-1.5-flash" in u for u in called_urls), \
-            "Should fall back to gemini-1.5-flash after 2.0-flash 429"
-        assert result == "ok"
-
-    def test_raises_when_both_models_exhausted(self):
+    def test_raises_on_nonzero_exit(self):
+        import pytest
         import agent.test_generator as tg
-        import urllib.error
-
-        def fake_urlopen(req, timeout=60):
-            raise self._make_urllib_429({"error": {"status": "RESOURCE_EXHAUSTED"}})
-
-        with patch("agent.config.ANTHROPIC_API_KEY", ""), \
-             patch.dict("os.environ", {"GEMINI_API_KEY": "testkey"}), \
-             patch("urllib.request.urlopen", fake_urlopen):
-            try:
-                tg._call_ai("hi", max_tokens=10)
-                assert False, "Should have raised EnvironmentError"
-            except EnvironmentError as e:
-                assert "quota exhausted" in str(e).lower()
+        with patch("shutil.which", return_value="/usr/bin/claude"), \
+             patch("subprocess.run", return_value=self._done(returncode=1, stderr="not logged in")):
+            with pytest.raises(EnvironmentError, match="not logged in"):
+                tg._call_claude_code_cli("hi")

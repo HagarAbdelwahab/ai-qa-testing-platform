@@ -9,3 +9,4 @@ python-docx>=1.1.0
 reportlab>=4.0
 arabic-reshaper>=3.0
 python-bidi>=0.4
+anthropic>=0.94.0

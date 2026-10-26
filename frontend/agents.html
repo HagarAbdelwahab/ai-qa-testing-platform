@@ -4,9 +4,12 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>QA Agents</title>
-  <link rel="stylesheet" href="/static/style.css"/>
+  <link rel="icon" href="/static/img/favicon.ico"/>
+  <link rel="stylesheet" href="/static/style.css?v=merath2"/>
   <script src="/static/nav.js" defer></script>
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="/static/cases-to-add.js?v=drafts1" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@18.1.1/lib/marked.umd.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.17/dist/purify.min.js"></script>
   <style>
     .page{padding:20px;max-width:1200px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
 
@@ -14,13 +17,14 @@
     .actions-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 
     .action-card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:18px 20px;display:flex;flex-direction:column;gap:14px;transition:box-shadow .15s}
-    .action-card:hover{box-shadow:0 4px 16px rgba(27,107,69,0.10)}
+    .action-card:hover{box-shadow:0 4px 16px rgba(0,141,85,0.10)}
 
     .action-header{display:flex;align-items:center;gap:10px}
     .action-icon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
-    .icon-review{background:rgba(27,107,69,0.10)}
+    .icon-review{background:rgba(0,141,85,0.10)}
     .icon-sub{background:rgba(14,95,223,0.10)}
     .icon-tw{background:rgba(249,115,22,0.10)}
+    .icon-rec{background:rgba(124,58,237,0.10)}
 
     .action-title{font-size:13px;font-weight:600;color:var(--color-text-primary)}
     .action-desc{font-size:11px;color:var(--color-text-secondary);margin-top:1px}
@@ -30,18 +34,20 @@
     .form-input{background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-sm);color:var(--color-text-primary);font-family:var(--font-sans);font-size:12px;padding:7px 10px;outline:none;width:100%;transition:border-color .15s}
     .form-input:focus{border-color:var(--color-border-info)}
 
-    .btn{padding:8px 16px;border-radius:var(--border-radius-md);border:0.5px solid;cursor:pointer;font-size:12px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;transition:background .15s,opacity .15s;width:100%}
+    .btn{padding:12px 16px;border-radius:16px;border:1px solid;cursor:pointer;font-family:var(--font-sans);font-size:14px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;transition:background .15s,opacity .15s;width:100%}
     .btn:disabled{opacity:.4;cursor:not-allowed}
-    .btn-review{background:#1b6b45;border-color:#1b6b45;color:#fff}
-    .btn-review:hover:not(:disabled){background:#155737}
-    .btn-sub{background:#0e5fdf;border-color:#0e5fdf;color:#fff}
-    .btn-sub:hover:not(:disabled){background:#0b4db8}
-    .btn-tw{background:#f97316;border-color:#f97316;color:#fff}
-    .btn-tw:hover:not(:disabled){background:#ea6c10}
+    .btn-review{background:var(--merath-primary);border-color:var(--merath-primary-border);color:#fff}
+    .btn-review:hover:not(:disabled){background:var(--merath-primary-hover)}
+    .btn-rec{background:var(--merath-primary);border-color:var(--merath-primary-border);color:#fff}
+    .btn-rec:hover:not(:disabled){background:var(--merath-primary-hover)}
+    .btn-sub{background:var(--merath-primary);border-color:var(--merath-primary-border);color:#fff}
+    .btn-sub:hover:not(:disabled){background:var(--merath-primary-hover)}
+    .btn-tw{background:var(--merath-primary);border-color:var(--merath-primary-border);color:#fff}
+    .btn-tw:hover:not(:disabled){background:var(--merath-primary-hover)}
 
     .icon-tsr{background:rgba(124,58,237,0.10)}
-    .btn-tsr{background:#7c3aed;border-color:#7c3aed;color:#fff}
-    .btn-tsr:hover:not(:disabled){background:#6d28d9}
+    .btn-tsr{background:var(--merath-primary);border-color:var(--merath-primary-border);color:#fff}
+    .btn-tsr:hover:not(:disabled){background:var(--merath-primary-hover)}
     .btn-ghost{background:transparent;border-color:var(--color-border-secondary);color:var(--color-text-primary);width:auto;padding:5px 10px;font-size:11px}
     .check-row{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-text-secondary)}
 
@@ -106,16 +112,12 @@
 <body>
 
 <nav class="topnav">
-  <a href="/" class="topnav-brand" style="text-decoration:none;display:flex;align-items:center;gap:8px">
-    <svg width="30" height="30" viewBox="0 0 30 30" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect x="3" y="10" width="12" height="19" rx="6" fill="#2d7a5e" transform="rotate(-12 9 19)"/>
-      <rect x="14" y="3" width="14" height="13" rx="6" fill="#5cb87a"/>
-    </svg>
-    <span style="font-family:var(--font-sans);font-size:15px;font-weight:700;color:#1b6b45;letter-spacing:-0.2px">منصة التركات</span>
-  </a>
-  <a href="/" class="topnav-link">Dashboard</a>
-  <a href="/agents" class="topnav-link active">Agents</a>
-  <a href="/knowledge-base" class="topnav-link">Knowledge Center</a>
+  <a href="/" class="topnav-brand"><img src="/static/img/merath-logo.svg" alt="منصة التركات"/></a>
+  <div class="topnav-links">
+    <a href="/" class="topnav-link">Dashboard</a>
+    <a href="/agents" class="topnav-link active">Agents</a>
+    <a href="/knowledge-base" class="topnav-link">Knowledge Center</a>
+  </div>
   <div class="topnav-spacer"></div>
   <span class="config-badge" id="config-badge">checking…</span>
 </nav>
@@ -157,6 +159,10 @@
           <div class="input-label">Ticket Key(s) <span style="font-weight:400;text-transform:none;letter-spacing:0">(comma-separated)</span></div>
           <input class="form-input" id="sub-keys" placeholder="e.g. TAT-5516, TAT-5517" onkeydown="if(event.key==='Enter') runSubtasks()"/>
         </div>
+        <div>
+          <div class="input-label">QA Assignee <span style="font-weight:400;text-transform:none;letter-spacing:0">(email or Jira name — not set on the review subtask)</span></div>
+          <input class="form-input" id="sub-assignee" placeholder="e.g. name@example.com" onkeydown="if(event.key==='Enter') runSubtasks()"/>
+        </div>
         <button class="btn btn-sub" id="btn-sub" onclick="runSubtasks()">Create Subtasks</button>
       </div>
     </div>
@@ -180,6 +186,36 @@
           <input class="form-input" id="tw-cycle" placeholder="e.g. squad-a-sprint-35" onkeydown="if(event.key==='Enter') runTestware()"/>
         </div>
         <button class="btn btn-tw" id="btn-tw" onclick="runTestware()">Prepare Testware</button>
+      </div>
+    </div>
+
+    <!-- Reconcile After Development -->
+    <div class="action-card">
+      <div class="action-header">
+        <div class="action-icon icon-rec">🔁</div>
+        <div>
+          <div class="action-title">Reconcile After Development</div>
+          <div class="action-desc">Check cases cover the code change and touched AS-IS rules</div>
+        </div>
+      </div>
+      <div class="action-body">
+        <div>
+          <div class="input-label">Ticket Key</div>
+          <input class="form-input" id="rec-key" placeholder="e.g. TAT-5516" onkeydown="if(event.key==='Enter') runReconcile()"/>
+        </div>
+        <div>
+          <div class="input-label">Environment</div>
+          <select class="form-input" id="rec-env" title="Diffs this env branch vs production in BE and FE, kept to the story's modules"><option value="" disabled selected>— select environment —</option></select>
+        </div>
+        <div>
+          <div class="input-label">BE branch / PR (optional)</div>
+          <input class="form-input" id="rec-be" placeholder="branch, PR number or PR URL — comma-separated" onkeydown="if(event.key==='Enter') runReconcile()"/>
+        </div>
+        <div>
+          <div class="input-label">FE branch / PR (optional)</div>
+          <input class="form-input" id="rec-fe" placeholder="only if the branch name lacks the ticket key" onkeydown="if(event.key==='Enter') runReconcile()"/>
+        </div>
+        <button class="btn btn-rec" id="btn-rec" onclick="runReconcile()">Run Reconciliation</button>
       </div>
     </div>
 
@@ -336,10 +372,18 @@ function handleDone(msg) {
     panelDone(true); return;
   }
 
+  if(res.drafts){
+    renderDrafts(document.getElementById('panel-result'), res.drafts,
+                 res.cycle || document.getElementById('tw-cycle')?.value.trim());
+    panelDone(true); return;
+  }
+
   if(res.review){
     document.getElementById('panel-log').style.display = 'none';
     document.getElementById('panel-result').innerHTML =
-      `<div class="review-out">${marked.parse(res.review)}</div>`;
+      `<div class="review-out">${DOMPurify.sanitize(marked.parse(res.review))}</div>`;
+    renderCasesToAdd(document.getElementById('panel-result'), res.issue_key, res.cases_to_add,
+                     document.getElementById('tw-cycle')?.value.trim());
     panelDone(true); return;
   }
 
@@ -385,9 +429,40 @@ async function runReview() {
   } finally { btn.disabled = false; }
 }
 
+async function runReconcile() {
+  const key = document.getElementById('rec-key').value.trim().toUpperCase();
+  if(!key){ document.getElementById('rec-key').focus(); return; }
+  const be_refs = document.getElementById('rec-be').value.trim();
+  const fe_refs = document.getElementById('rec-fe').value.trim();
+  const environment = document.getElementById('rec-env').value;
+  if(!environment){ document.getElementById('rec-env').focus(); return; }
+  const btn = document.getElementById('btn-rec');
+  btn.disabled = true;
+  openPanel('Reconcile', key);
+  try {
+    const r = await fetch('/api/agents/reconcile-story', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({issue_key: key, be_refs, fe_refs, environment}),
+    });
+    const data = await r.json();
+    if(!r.ok || data.error){ panelDone(false, data.error || r.statusText); return; }
+    streamToPanel(data.job_id);
+  } finally { btn.disabled = false; }
+}
+
+(async function loadReconcileEnvs() {
+  try {
+    const r = await fetch('/api/agents/reconcile-envs');
+    const sel = document.getElementById('rec-env');
+    for (const env of (await r.json()).environments || []) sel.add(new Option(env, env));
+  } catch (e) { /* dropdown stays empty — Run is blocked until an env is picked */ }
+})();
+
 async function runSubtasks() {
   const raw = document.getElementById('sub-keys').value.trim();
   if(!raw){ document.getElementById('sub-keys').focus(); return; }
+  const assignee = document.getElementById('sub-assignee').value.trim();
+  if(!assignee){ document.getElementById('sub-assignee').focus(); return; }
   const keys = raw.toUpperCase();
   const btn = document.getElementById('btn-sub');
   btn.disabled = true;
@@ -395,7 +470,7 @@ async function runSubtasks() {
   try {
     const r = await fetch('/api/agents/create-subtasks', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({issue_keys: keys}),
+      body: JSON.stringify({issue_keys: keys, qa_assignee: assignee}),
     });
     const data = await r.json();
     if(!r.ok || data.error){ panelDone(false, data.error || r.statusText); return; }

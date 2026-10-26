@@ -31,3 +31,20 @@ def retry_on_429(fn, *args, max_retries: int = 4, base_delay: float = 2.0, **kwa
                 delay = min(delay * 2, 60)
             else:
                 raise
+
+
+def get_with_retry(url: str, max_retries: int = 3, base_delay: float = 2.0, **kwargs) -> requests.Response:
+    """requests.get that retries dropped connections (e.g. 'Connection reset by peer').
+
+    GET only: a retried POST could create the same record twice.
+    """
+    delay = base_delay
+    for attempt in range(1, max_retries + 1):
+        try:
+            return requests.get(url, timeout=kwargs.pop("timeout", 60), **kwargs)
+        except (requests.ConnectionError, requests.Timeout) as e:
+            if attempt == max_retries:
+                raise
+            print(f"  [retry] {type(e).__name__} on GET — waiting {delay:.0f}s (attempt {attempt}/{max_retries})")
+            time.sleep(delay)
+            delay *= 2
