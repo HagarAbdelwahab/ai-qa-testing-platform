@@ -1,8 +1,8 @@
 """
 Context repo access — the qa-context git repo holding AS-IS business rules.
 
-master = production AS-IS. A ticket gets its own branch (e.g. TAT-1234) that holds
-the planned rules written by the story review. Writes never touch the working tree:
+master = production AS-IS. A ticket gets its own branch (e.g. TAT-1234) where the story
+review edits rules.md: the branch's diff vs master is the story's rule change, merged like code. Writes never touch the working tree:
 commits are built with git plumbing on a temporary index, so a user's checkout and
 uncommitted edits in the context repo are left alone.
 """
@@ -120,29 +120,155 @@ def load_module_context(module: dict, ref: str | None = None) -> str:
 
 
 def next_rule_number(module: dict, ref: str | None = None) -> int:
-    """Next free BR-<module>-NNN number (IDs are never reused)."""
-    rules = read_file(f"{module['folder']}/rules.md", ref) or ""
-    nums = [int(n) for n in re.findall(rf"BR-{re.escape(module['id'])}-(\d+)", rules)]
+    """Next free BR-<module>-NNN number. IDs are never reused, and stories in flight must not
+    collide: without `ref`, every local and remote branch (master, story branches, env branches)
+    is scanned, so two open stories never get the same number."""
+    if ref:
+        refs = [ref]
+    else:
+        refs = [r for r in _git("for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes").split()
+                if not r.endswith("/HEAD")] or [config.CONTEXT_BASE_BRANCH]
+    try:
+        out = _git("grep", "-h", "-o", "-E", rf"BR-{re.escape(module['id'])}-[0-9]+", *refs,
+                   "--", module["folder"])
+    except ContextRepoError:  # git grep exits 1 when nothing matches
+        out = ""
+    nums = [int(n) for n in re.findall(rf"BR-{re.escape(module['id'])}-(\d+)", out)]
     return max(nums, default=0) + 1
 
 
-def planned_rules_path(module: dict, ticket: str) -> str:
-    return f"{module['folder']}/planned/{ticket}.md"
+# ── Rules as code: a story edits rules.md on its branch ─────────────────────────
+# A story's rule changes are edits of modules/<m>/rules.md on its context branch, merged to env
+# branches and to master like code: CHANGE rewrites an existing row, REMOVE strikes it through, ADD
+# appends rows to the story's own "### <key> — <title>" section. Touched rows get status 🕓 and
+# "<key> · <source>" as evidence. The diff vs master is the story's rule change.
+
+RULE_ROW = re.compile(r"^\|\s*((?:BR|PL)-[A-Za-z0-9]+-\d+)\s*\|")
+CHANGE_KINDS = ("ADD", "CHANGE", "REMOVE")
+
+
+def rules_path(module: dict) -> str:
+    return f"{module['folder']}/rules.md"
+
+
+def _cells(line: str) -> list[str]:
+    return [c.strip() for c in line.strip().strip("|").split("|")]
+
+
+def _row(cells: list[str]) -> str:
+    return "| " + " | ".join(cells) + " |\n"
+
+
+def rule_rows(text: str) -> dict[str, str]:
+    """Rule ID → table row line."""
+    rows = {}
+    for line in text.splitlines():
+        m = RULE_ROW.match(line)
+        if m:
+            rows[m.group(1)] = line
+    return rows
+
+
+def _table_header(text: str) -> list[str]:
+    for line in text.splitlines():
+        if line.startswith("|") and _cells(line)[0] == "ID":
+            return _cells(line)
+    return ["ID", "Rule", "Status", "Evidence"]
+
+
+def apply_rule_changes(rules_text: str, changes: list[dict], issue_key: str,
+                       story_title: str) -> tuple[str, list[str]]:
+    """Apply ADD / CHANGE / REMOVE rows ({change, id, rule, source}) to a rules.md text.
+    Returns (new text, notes about skipped changes). Re-applying a review updates the same rows."""
+    lines = rules_text.splitlines(keepends=True)
+    if lines and not lines[-1].endswith("\n"):
+        lines[-1] += "\n"
+    header = _table_header(rules_text)
+    notes = []
+
+    def find(rid):
+        return next((i for i, ln in enumerate(lines)
+                     if (m := RULE_ROW.match(ln)) and m.group(1) == rid), None)
+
+    def section_end():
+        """Index after the last row of the story's section; the section is created when missing."""
+        start = next((i for i, ln in enumerate(lines)
+                      if ln.startswith(f"### {issue_key} ") or ln.rstrip() == f"### {issue_key}"), None)
+        if start is None:
+            if lines and lines[-1].strip():
+                lines.append("\n")
+            lines.extend([f"### {issue_key} — {story_title}".rstrip(" —") + "\n",
+                          _row(header), _row(["---"] * len(header))])
+            return len(lines)
+        i = start + 1
+        while i < len(lines) and lines[i].startswith("|"):
+            i += 1
+        return i
+
+    for c in changes:
+        kind, rid, text = c["change"].upper(), c["id"], c["rule"]
+        evidence = f"{issue_key} · {c.get('source') or 'story'}"
+        idx = find(rid)
+        if kind == "ADD" and idx is not None and issue_key not in _cells(lines[idx])[-1]:
+            notes.append(f"Skipped ADD {rid}: the ID already exists in rules.md")
+            continue
+        if idx is None and kind != "ADD":
+            notes.append(f"Skipped {kind} {rid}: not in rules.md")
+            continue
+        if idx is not None:  # CHANGE, REMOVE, or a re-review updating its own ADD
+            cells = _cells(lines[idx])
+            if kind == "REMOVE":
+                cells[1] = f"~~{cells[1].strip('~')}~~ Removed by {issue_key}: {text}"
+            else:
+                cells[1] = text
+            cells[-2], cells[-1] = "🕓", evidence
+            lines[idx] = _row(cells)
+            continue
+        lines.insert(section_end(), _row([rid, text] + [""] * (len(header) - 4) + ["🕓", evidence]))
+    return "".join(lines), notes
+
+
+def rule_changes(module: dict, ref: str, base: str | None = None) -> list[dict]:
+    """Rule rows that differ between base (default master) and ref: [{change, id, row, base_row}]."""
+    before = rule_rows(read_file(rules_path(module), base) or "")
+    after = rule_rows(read_file(rules_path(module), ref) or "")
+    out = []
+    for rid, row in after.items():
+        if rid not in before:
+            out.append({"change": "ADD", "id": rid, "row": row, "base_row": None})
+        elif row != before[rid]:
+            kind = "REMOVE" if _cells(row)[1].startswith("~~") else "CHANGE"
+            out.append({"change": kind, "id": rid, "row": row, "base_row": before[rid]})
+    out += [{"change": "REMOVE", "id": rid, "row": None, "base_row": row}
+            for rid, row in before.items() if rid not in after]
+    return out
+
+
+def rule_changes_block(module: dict, ref: str, base: str | None = None) -> str:
+    """The branch's rule changes vs base as a markdown list, for prompts. Empty when none."""
+    lines = []
+    for c in rule_changes(module, ref, base):
+        line = f"- {c['change']} {c['id']}: {_cells(c['row'])[1] if c['row'] else '(row deleted)'}"
+        if c["base_row"] and c["change"] != "ADD":
+            line += f"\n  was: {_cells(c['base_row'])[1]}"
+        lines.append(line)
+    return "\n".join(lines)
 
 
 def load_story_rules(issue_key: str, text: str, max_modules: int = 3) -> tuple[list[dict], str, str]:
     """Rules for test design, read only from the ticket's context branch <issue_key> (created by
-    the story review from the base branch): AS-IS context + the ticket's planned rules.
-    Modules = those with planned rules on the branch, plus those the story text matches.
-    Returns (modules, prompt block, error); error is set when there is nothing to use. Never raises."""
+    the story review from the base branch): its rules.md (AS-IS + the story's edits) and the list
+    of rule changes vs the base branch. Modules = those whose rules the story changes, plus those
+    the story text matches. Returns (modules, prompt block, error); error is set when there is
+    nothing to use. Never raises."""
     try:
         if not branch_exists(issue_key):
             return [], "", (f"Context branch {issue_key} not found — run 'Review userstory' first, "
-                            f"it creates the branch with the story's planned rules.")
+                            f"it creates the branch with the story's rule changes.")
         all_modules = load_module_map(issue_key)
         planned = {}
         for m in all_modules:
-            txt = read_file(planned_rules_path(m, issue_key), issue_key)
+            txt = rule_changes_block(m, issue_key)
             if txt:
                 planned[m["id"]] = txt
         detected = detect_modules(text, all_modules)[:max_modules]
@@ -152,7 +278,7 @@ def load_story_rules(issue_key: str, text: str, max_modules: int = 3) -> tuple[l
         for m in modules:
             block = f"##### MODULE {m['id']} — AS-IS rules (branch {issue_key})\n\n{load_module_context(m, issue_key)}"
             if m["id"] in planned:
-                block += (f"\n===== PLANNED rules for {issue_key} (🕓) =====\n"
+                block += (f"\n===== Rule changes of {issue_key} vs production (🕓) =====\n"
                           f"{planned[m['id']].strip()}\n")
             blocks.append(block)
     except ContextRepoError as exc:

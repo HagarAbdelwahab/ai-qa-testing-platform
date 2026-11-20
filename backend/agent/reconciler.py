@@ -3,7 +3,7 @@ Reconciliation Agent — runs AFTER development, once test cases are written.
 
 Answers: do the story's test cases cover everything the code changed, plus the AS-IS
 rules the change touches (regression)? Compares three sources per module:
-  rules  — AS-IS rules (context master) + planned rules (context branch <ticket>)
+  rules  — AS-IS rules (context master) + the ticket's rule changes (rules.md on context branch <ticket> vs master)
   code   — diff of the ticket's dev branch(es) vs the production branch, BE and FE
   tests  — AIO cases linked to the story; a case names its rules in the title, e.g.
            "[BR-CD-021] Change response after rejection"
@@ -274,7 +274,7 @@ def generate_reconciliation(issue_key: str, be_refs: str = "", fe_refs: str = ""
     planned_by_module = {}
     for m in all_modules:
         if ticket_ref:
-            txt = context_repo.read_file(context_repo.planned_rules_path(m, issue_key), ticket_ref)
+            txt = context_repo.rule_changes_block(m, ticket_ref)
             if txt:
                 planned_by_module[m["id"]] = txt
     print(f"  Context branch {issue_key}: {'found' if ticket_ref else 'not found — AS-IS rules only'}")
@@ -306,10 +306,11 @@ def generate_reconciliation(issue_key: str, be_refs: str = "", fe_refs: str = ""
     rules_block, all_rule_ids = [], set()
     for m in modules:
         asis = context_repo.read_file(f"{m['folder']}/rules.md") or "(no rules.md)"
-        planned = planned_by_module.get(m["id"], "(no planned rules)")
+        planned = planned_by_module.get(m["id"], "(no rule changes)")
         all_rule_ids |= set(rule_ids_in(asis)) | set(rule_ids_in(planned))
         rules_block.append(f"##### MODULE {m['id']} — AS-IS rules (master)\n{asis}\n\n"
-                           f"##### MODULE {m['id']} — planned rules ({issue_key})\n{planned}\n")
+                           f"##### MODULE {m['id']} — rule changes of {issue_key} "
+                           f"(rules.md on branch {issue_key} vs master)\n{planned}\n")
     precheck = coverage_precheck(all_rule_ids, cases)
 
     files_block = []

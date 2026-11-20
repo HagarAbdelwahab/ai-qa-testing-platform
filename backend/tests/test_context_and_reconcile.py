@@ -31,8 +31,11 @@ MODULE_MAP = """# Module map
 """
 
 RULES = """# rules
-| BR-CD-001 | rule one | ☐ |
-| BR-CD-055 | rule fifty-five | ☐ |
+| ID | Rule | Ver | Status | Evidence |
+|---|---|---|---|---|
+| BR-CD-001 | rule one | v2 | ☐ | `BE:a.py` |
+| BR-CD-002 | rule two | v2 | ☐ | `BE:b.py` |
+| BR-CD-055 | rule fifty-five | FE | ☐ | `FE:c.vue` |
 """
 
 
@@ -97,6 +100,13 @@ class TestContextRepoWrites:
         mod = context_repo.load_module_map()[0]
         assert context_repo.next_rule_number(mod) == 56
 
+    def test_next_rule_number_skips_numbers_taken_by_open_story_branches(self, ctx_repo):
+        mod = context_repo.load_module_map()[0]
+        context_repo.commit_file_to_branch("TAT-1", "modules/cash-division/rules.md",
+                                           RULES + "| BR-CD-060 | story one | v2 | 🕓 | TAT-1 |\n", "s1")
+        assert context_repo.next_rule_number(mod) == 61
+        assert context_repo.next_rule_number(mod, "master") == 56
+
     def test_commit_creates_branch_without_touching_worktree(self, ctx_repo):
         (ctx_repo / "scratch.txt").write_text("uncommitted user edit")
         sha = context_repo.commit_file_to_branch(
@@ -130,19 +140,34 @@ class TestContextRepoWrites:
 
 # ── 3. Story review ───────────────────────────────────────────────────────────
 
-class TestStoryReviewPlannedRules:
+class TestStoryReviewRuleChanges:
     def test_extracts_block_per_module(self):
         review = (
-            "text\n```planned-rules CD\n| Rule ID | Rule | Status | Source |\n|---|---|---|---|\n"
-            "| BR-CD-056 | new rule | 🕓 | AC1 |\n```\nmore\n"
-            "```planned-rules INV\n| BR-INV-010 | other | 🕓 | AC2 |\n```"
+            "text\n```rule-changes CD\n| Change | Rule ID | Rule | Source |\n|---|---|---|---|\n"
+            "| ADD | BR-CD-056 | new rule | AC1 |\n| change | BR-CD-002 | rule two v2 | AC2 |\n```\nmore\n"
+            "```rule-changes INV\n| REMOVE | BR-INV-010 | dropped | AC3 |\n```"
         )
-        out = story_reviewer.extract_planned_rules(review)
+        out = story_reviewer.extract_rule_changes(review)
         assert set(out) == {"CD", "INV"}
-        assert "BR-CD-056" in out["CD"]
+        assert [(r["change"], r["id"]) for r in out["CD"]] == [("ADD", "BR-CD-056"), ("CHANGE", "BR-CD-002")]
+        assert out["INV"][0]["source"] == "AC3"
 
-    def test_block_without_module_id_is_ignored(self):
-        assert story_reviewer.extract_planned_rules("```planned-rules\n| x |\n```") == {}
+    def test_block_without_module_id_or_rows_is_ignored(self):
+        assert story_reviewer.extract_rule_changes("```rule-changes\n| ADD | BR-CD-1 | x | y |\n```") == {}
+        assert story_reviewer.extract_rule_changes("```rule-changes CD\n| x |\n```") == {}
+
+    def test_write_rule_changes_edits_rules_md_on_ticket_branch(self, ctx_repo):
+        mod = context_repo.load_module_map()[0]
+        rows = [{"change": "CHANGE", "id": "BR-CD-002", "rule": "rule two v2", "source": "AC2"},
+                {"change": "ADD", "id": "BR-CD-056", "rule": "new rule", "source": "AC1"}]
+        notes = story_reviewer._write_rule_changes("TAT-1", "Story", [mod], {"CD": rows})
+        assert "committed" in notes[0] and "ADD 1" in notes[0] and "CHANGE 1" in notes[0]
+        on_branch = context_repo.read_file("modules/cash-division/rules.md", "TAT-1")
+        assert "| BR-CD-002 | rule two v2 | v2 | 🕓 | TAT-1 · AC2 |" in on_branch
+        assert context_repo.read_file("modules/cash-division/rules.md") == RULES  # master untouched
+        # re-running the same review commits nothing new
+        again = story_reviewer._write_rule_changes("TAT-1", "Story", [mod], {"CD": rows})
+        assert "already on context branch" in again[0]
 
     def test_load_context_falls_back_when_repo_missing(self):
         with patch.object(context_repo, "load_module_map",
@@ -283,18 +308,23 @@ class TestStoryRulesForTestDesign:
         mods, block, err = context_repo.load_story_rules("TAT-9", "Fix IBAN screen")
         assert mods == [] and block == "" and "run 'Review userstory' first" in err
 
-    def test_reads_rules_and_planned_from_ticket_branch(self, ctx_repo):
-        context_repo.commit_file_to_branch(
-            "TAT-9", "modules/cash-division/planned/TAT-9.md", "| BR-CD-056 | new | 🕓 |\n", "planned")
+    def test_reads_rules_and_rule_changes_from_ticket_branch(self, ctx_repo):
+        new, _ = context_repo.apply_rule_changes(
+            RULES, [{"change": "CHANGE", "id": "BR-CD-001", "rule": "rule one v2", "source": "AC"},
+                    {"change": "ADD", "id": "BR-CD-056", "rule": "new", "source": "AC"}], "TAT-9", "S")
+        context_repo.commit_file_to_branch("TAT-9", "modules/cash-division/rules.md", new, "planned")
         mods, block, err = context_repo.load_story_rules("TAT-9", "unrelated text")
         assert [m["id"] for m in mods] == ["CD"] and err == ""
-        assert "BR-CD-056" in block and "BR-CD-001" in block and "branch TAT-9" in block
+        assert "Rule changes of TAT-9" in block and "branch TAT-9" in block
+        assert "- ADD BR-CD-056: new" in block
+        assert "- CHANGE BR-CD-001: rule one v2\n  was: rule one" in block
 
     def test_branch_content_wins_over_master(self, ctx_repo):
         context_repo.commit_file_to_branch("TAT-9", "modules/cash-division/rules.md",
                                            "| BR-CD-099 | branch only | ☐ |\n", "edit")
         _, block, _ = context_repo.load_story_rules("TAT-9", "IBAN")
-        assert "BR-CD-099" in block and "BR-CD-055" not in block
+        assert "BR-CD-099" in block and "- ADD BR-CD-099" in block
+        assert "- REMOVE BR-CD-055: (row deleted)" in block  # dropped on the branch → shown as removed
 
     def test_no_module_matched_is_an_error(self, ctx_repo):
         context_repo.commit_file_to_branch("TAT-9", "notes.md", "x", "empty")
@@ -307,3 +337,43 @@ class TestTitleNormalisation:
         import qa_agent
         assert qa_agent._norm_title("[BR-TK-021][BR-TK-022]  Cancel  ticket") == "cancel ticket"
         assert qa_agent._norm_title("[NO-RULE] Cancel ticket") == qa_agent._norm_title("Cancel ticket")
+
+
+class TestApplyRuleChanges:
+    def test_change_remove_add(self):
+        out, notes = context_repo.apply_rule_changes(RULES, [
+            {"change": "CHANGE", "id": "BR-CD-001", "rule": "rule one v2", "source": "AC1"},
+            {"change": "REMOVE", "id": "BR-CD-002", "rule": "no longer needed", "source": "AC2"},
+            {"change": "ADD", "id": "BR-CD-056", "rule": "brand new", "source": "AC3"},
+        ], "TAT-5", "V-IBAN")
+        assert notes == []
+        assert "| BR-CD-001 | rule one v2 | v2 | 🕓 | TAT-5 · AC1 |" in out
+        assert "| BR-CD-002 | ~~rule two~~ Removed by TAT-5: no longer needed | v2 | 🕓 | TAT-5 · AC2 |" in out
+        assert out.endswith("### TAT-5 — V-IBAN\n| ID | Rule | Ver | Status | Evidence |\n"
+                            "| --- | --- | --- | --- | --- |\n| BR-CD-056 | brand new |  | 🕓 | TAT-5 · AC3 |\n")
+
+    def test_second_add_goes_into_the_same_story_section(self):
+        out, _ = context_repo.apply_rule_changes(
+            RULES, [{"change": "ADD", "id": "BR-CD-056", "rule": "a", "source": ""}], "TAT-5", "S")
+        out, _ = context_repo.apply_rule_changes(
+            out + "\n### Other\ntext\n", [{"change": "ADD", "id": "BR-CD-057", "rule": "b", "source": ""}],
+            "TAT-5", "S")
+        assert out.count("### TAT-5") == 1
+        assert out.index("BR-CD-057") < out.index("### Other")
+
+    def test_unknown_or_taken_ids_are_skipped_with_a_note(self):
+        out, notes = context_repo.apply_rule_changes(RULES, [
+            {"change": "CHANGE", "id": "BR-CD-099", "rule": "x", "source": ""},
+            {"change": "ADD", "id": "BR-CD-001", "rule": "x", "source": ""},
+        ], "TAT-5", "S")
+        assert out == RULES
+        assert len(notes) == 2 and "not in rules.md" in notes[0] and "already exists" in notes[1]
+
+    def test_rule_changes_vs_master(self, ctx_repo):
+        mod = context_repo.load_module_map()[0]
+        new, _ = context_repo.apply_rule_changes(RULES, [
+            {"change": "REMOVE", "id": "BR-CD-002", "rule": "gone", "source": ""},
+            {"change": "ADD", "id": "BR-CD-056", "rule": "n", "source": ""}], "TAT-5", "S")
+        context_repo.commit_file_to_branch("TAT-5", "modules/cash-division/rules.md", new, "c")
+        got = {(c["change"], c["id"]) for c in context_repo.rule_changes(mod, "TAT-5")}
+        assert got == {("REMOVE", "BR-CD-002"), ("ADD", "BR-CD-056")}
