@@ -228,13 +228,11 @@ class TestSubtaskCreation:
             result = jc.create_subtasks("TAT-5720")
         summaries = [c["body"]["fields"]["summary"] for c in captured]
         assert summaries == [
-            "[Testing] Test case writing",
-            "[Testing] Test case review",
             "[Testing] Test case execution - mocks",
             "[Testing] Test case execution - E2E",
         ]
         assert summaries == jc.SUBTASK_NAMES
-        assert len(result) == 4
+        assert len(result) == 2
 
 
 # ── 5. Claude Code CLI call ───────────────────────────────────────────────────

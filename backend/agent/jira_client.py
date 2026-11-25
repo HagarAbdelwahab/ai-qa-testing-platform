@@ -284,14 +284,9 @@ def get_subtask_assignees(subtask_to_story: dict[str, str]) -> dict[str, list[di
 # ── Subtask creation ──────────────────────────────────────────────────────────
 
 SUBTASK_NAMES = [
-    "[Testing] Test case writing",
-    "[Testing] Test case review",
     "[Testing] Test case execution - mocks",
     "[Testing] Test case execution - E2E",
 ]
-
-# Left unassigned — the reviewer is someone other than the QA owner.
-REVIEW_SUBTASK = "[Testing] Test case review"
 
 # Subtask issue type ID for this Jira instance (confirmed from browser DevTools)
 _SUBTASK_ISSUETYPE_ID = "10008"
@@ -323,8 +318,8 @@ def create_subtasks(parent_key: str, assignee: dict | None = None) -> dict[str, 
     Create the QA subtasks under a parent story, skipping any that already exist.
     Uses numeric IDs for project, parent, and issuetype — matching the
     browser curl that works: POST /rest/api/2/issue with id-based fields.
-    If `assignee` (a Jira user dict) is given, every subtask except REVIEW_SUBTASK —
-    existing or new — is assigned to them; the review subtask is left as is.
+    If `assignee` (a Jira user dict) is given, every subtask —
+    existing or new — is assigned to them.
     Returns {subtask_name: issue_key} for all subtasks (existing + newly created).
     """
     parent = get_issue(parent_key)
@@ -357,8 +352,6 @@ def create_subtasks(parent_key: str, assignee: dict | None = None) -> dict[str, 
         _transition_to_todo(key)
     if assignee:
         for name, key in result.items():
-            if name == REVIEW_SUBTASK:
-                continue
             assign_issue(key, assignee["accountId"])
             print(f"  Assigned {key} — {name} → {assignee.get('displayName')}")
     return result
