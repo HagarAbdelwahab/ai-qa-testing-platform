@@ -9,7 +9,7 @@
   <link rel="icon" href="/static/img/favicon.ico"/>
   <link rel="stylesheet" href="/static/style.css?v=merath2"/>
   <script src="/static/nav.js" defer></script>
-  <script src="/static/cases-to-add.js?v=drafts1" defer></script>
+  <script src="/static/cases-to-add.js?v=dupcheck1" defer></script>
   <style>
     /* ── Dashboard layout (from original design) ───────────────────────── */
     *{box-sizing:border-box;margin:0;padding:0}
@@ -163,7 +163,7 @@
           <span id="home-sprint-label" style="font-size:11px;color:var(--color-text-secondary);font-weight:400"></span>
         </div>
         <div style="display:flex;align-items:center;gap:8px">
-          <span style="font-size:11px;color:var(--color-text-secondary)">AIO Cycle:</span>
+          <span style="font-size:11px;color:var(--color-text-secondary)">AIO Cycle (optional):</span>
           <input id="home-cycle" placeholder="e.g. Squad-a-sprint-35"
             style="background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);border-radius:4px;color:var(--color-text-primary);font-size:12px;padding:4px 8px;outline:none;width:190px"/>
           <span style="font-size:11px;color:var(--color-text-secondary)">QA:</span>
@@ -285,7 +285,7 @@
         Generates test cases with Claude, creates AIO artifacts, writes Playwright specs, and links everything to your cycle.
       </p>
       <div class="form-row">
-        <label class="form-label">Cycle / Sprint name</label>
+        <label class="form-label">Cycle / Sprint name (optional)</label>
         <input class="form-input" id="ko-cycle" placeholder="e.g. squad-a-sprint-35"/>
       </div>
       <div class="form-row">
@@ -613,7 +613,6 @@ async function homeRunSubtasks(key) {
 
 async function homeRunTestware(key) {
   const cycle = document.getElementById('home-cycle').value.trim();
-  if(!cycle){ alert('Enter an AIO Cycle Name next to the sprint header first'); return; }
   openHomePanel('AIO Testware', key);
   const r = await fetch('/api/agents/aio-testware', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({issue_key:key,cycle_name:cycle})});
   const d = await r.json();
@@ -650,7 +649,7 @@ function runTestcasesKickoff() {
       creating AIO artifacts, and writing a Playwright spec.
     </p>
     <div class="form-row">
-      <label class="form-label">Cycle / Sprint name</label>
+      <label class="form-label">Cycle / Sprint name (optional)</label>
       <input class="form-input" id="inline-cycle" placeholder="e.g. squad-a-sprint-35"/>
     </div>
     <div class="form-row" style="display:flex;align-items:center;gap:8px">
@@ -668,7 +667,6 @@ function runTestcasesKickoff() {
 
 async function confirmTicketKickoff() {
   const cycle = document.getElementById('inline-cycle')?.value.trim();
-  if (!cycle) { alert('Cycle name is required.'); return; }
   const useKb = document.getElementById('inline-kb')?.checked;
   startStreamingJob('/api/testware/kickoff', {
     issues: [currentTicket.id],
@@ -740,7 +738,7 @@ function closeKickoff() {
 async function startKickoff() {
   const cycle = document.getElementById('ko-cycle').value.trim();
   const issueRaw = document.getElementById('ko-issues').value.trim();
-  if (!cycle || !issueRaw) { alert('Cycle name and at least one issue key are required.'); return; }
+  if (!issueRaw) { alert('At least one issue key is required.'); return; }
   const issues = issueRaw.split(',').map(s => s.trim()).filter(Boolean);
   const useKb = document.getElementById('ko-kb').checked;
 

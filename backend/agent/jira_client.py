@@ -326,16 +326,22 @@ def create_subtasks(parent_key: str, assignee: dict | None = None) -> dict[str, 
     project_id = str(parent["fields"]["project"]["id"])
     parent_id = str(parent["id"])
 
+    # Match on a normalised summary (case/spacing-insensitive) so a hand-renamed
+    # or retyped subtask is not recreated alongside the existing one.
+    def _norm(s: str) -> str:
+        return " ".join((s or "").split()).lower()
+
     existing_subtasks = {
-        s["fields"]["summary"]: s["key"]
+        _norm(s["fields"]["summary"]): s["key"]
         for s in parent["fields"].get("subtasks", [])
     }
 
     result = {}
     for name in SUBTASK_NAMES:
-        if name in existing_subtasks:
-            print(f"  Skipping subtask (already exists): {existing_subtasks[name]} — {name}")
-            result[name] = existing_subtasks[name]
+        if _norm(name) in existing_subtasks:
+            key = existing_subtasks[_norm(name)]
+            print(f"  Skipping subtask (already exists): {key} — {name}")
+            result[name] = key
             continue
         body = {
             "fields": {

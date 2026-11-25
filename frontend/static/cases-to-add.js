@@ -68,8 +68,12 @@ function renderDrafts(container, drafts, defaultCycle) {
     if (d.cases && d.cases.length) {
       renderCasesToAdd(container, d.issue_key, d.cases, defaultCycle, 'Review generated cases, then add to AIO');
     } else {
+      const ex = d.existing || [];
       container.insertAdjacentHTML('beforeend', `<div style="margin-top:14px;font-size:12px;color:var(--color-text-secondary)">
-        ${e(d.issue_key)}: nothing new — all generated cases are already in AIO (${(d.existing || []).length} linked).</div>`);
+        ${d.already_has_cases
+          ? `<b style="color:var(--color-text-primary)">${e(d.issue_key)}</b> already has ${ex.length} test case(s) in AIO — nothing was generated, to avoid duplicates.
+             <details style="margin-top:4px"><summary style="cursor:pointer">Existing cases</summary>${ex.map(c => `<div>${e(c.key)} — ${e(c.title)}</div>`).join('')}</details>`
+          : `${e(d.issue_key)}: no cases generated.`}</div>`);
     }
   }
 }

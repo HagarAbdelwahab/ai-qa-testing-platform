@@ -232,7 +232,7 @@ def run_create_subtasks(job_id: str, issue_keys: list[str], qa_assignee: str) ->
         all_results = {}
         with JobCapture(job_id):
             assignee = _jira.find_user(qa_assignee)
-            print(f"  QA assignee: {assignee.get('displayName')} (review subtask stays unassigned)")
+            print(f"  QA assignee: {assignee.get('displayName')}")
             for key in issue_keys:
                 print(f"\n── {key} ──────────────────────────")
                 result = _jira.create_subtasks(key, assignee)

@@ -358,20 +358,28 @@ def cmd_draft(issue_keys: list[str]) -> list[dict]:
         _raise_if_cancelled(f"story {story_key}")
         _banner(f"Processing: {story_key}")
         state = _load_state(story_key)
-        story_title, test_cases = _generate_story_cases(story_key, state)
+        # Validate first: a story that already has cases in AIO is not regenerated. A fresh
+        # generation words titles differently, so title matching alone let near-duplicates through.
         existing = []
         try:
             story_id = int(jira_client.get_issue(story_key)["id"])
             existing = aio_client.get_test_cases_for_story(config.JIRA_PROJECT_ID, story_id)
         except aio_client.AioUnavailable as exc:
-            print(f"  ⚠️ Could not read existing AIO cases ({exc}) — showing all; "
-                  f"adding still skips duplicates.")
-        have = {_norm_title(c["title"]) for c in existing}
-        new = [tc for tc in test_cases if _norm_title(tc["title"]) not in have]
-        print(f"\n  {story_key}: {len(new)} new case(s) to review; "
-              f"{len(test_cases) - len(new)} already in AIO ({len(existing)} linked).")
-        drafts.append({"issue_key": story_key, "story_title": story_title, "cases": new,
-                       "existing": [{"key": c["key"], "title": c["title"]} for c in existing]})
+            print(f"  ⚠️ Could not read existing AIO cases ({exc}) — generating anyway; "
+                  f"adding still skips exact-title duplicates.")
+        if existing:
+            print(f"\n  {story_key} already has {len(existing)} test case(s) in AIO — "
+                  f"skipping generation to avoid duplicates:")
+            for c in existing:
+                print(f"    {c['key']} — {c['title']}")
+            drafts.append({"issue_key": story_key, "story_title": jira_client.get_issue_summary(story_key),
+                           "cases": [], "already_has_cases": True,
+                           "existing": [{"key": c["key"], "title": c["title"]} for c in existing]})
+            continue
+        story_title, test_cases = _generate_story_cases(story_key, state)
+        print(f"\n  {story_key}: {len(test_cases)} new case(s) to review.")
+        drafts.append({"issue_key": story_key, "story_title": story_title, "cases": test_cases,
+                       "existing": []})
     return drafts
 
 
