@@ -23,7 +23,7 @@ function renderCasesToAdd(container, issueKey, cases, defaultCycle, heading) {
         </span>
       </label>`).join('')}</div>
     <div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">
-      <span style="font-size:11px;color:var(--color-text-secondary)">AIO Cycle:</span>
+      <span style="font-size:11px;color:var(--color-text-secondary)">AIO Cycle (optional):</span>
       <input class="cta-cycle" placeholder="e.g. Squad-a-sprint-35" value="${e(defaultCycle || '')}"
         style="background:var(--color-background-primary);border:0.5px solid var(--color-border-secondary);border-radius:4px;color:var(--color-text-primary);font-size:12px;padding:4px 8px;width:190px"/>
       <button class="cta-btn" style="font-size:12px;padding:5px 12px;border-radius:5px;border:0.5px solid var(--color-border-secondary);background:var(--color-background-primary);color:var(--color-text-primary);cursor:pointer">Add selected to AIO</button>
@@ -38,7 +38,6 @@ function renderCasesToAdd(container, issueKey, cases, defaultCycle, heading) {
     const picked = [...box.querySelectorAll('input[type=checkbox]:checked')].map(cb => cases[+cb.dataset.i]);
     const cycle = cycleEl.value.trim();
     if (!picked.length) { result.textContent = 'Tick at least one case.'; return; }
-    if (!cycle) { cycleEl.focus(); result.textContent = 'Enter the AIO cycle name.'; return; }
     btn.disabled = true; log.innerHTML = ''; log.style.display = 'block'; result.textContent = 'Adding…';
     const r = await fetch('/api/agents/add-cases', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({issue_key: issueKey, cycle_name: cycle, cases: picked})});

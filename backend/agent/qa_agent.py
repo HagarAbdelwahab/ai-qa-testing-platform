@@ -380,10 +380,12 @@ def cmd_add_cases(story_key: str, cases: list[dict], cycle_name: str) -> dict[st
     create the ones AIO lacks, link, publish, add to the story's test set and cycle.
     Returns {title: AIO key} for the given cases."""
     config.validate_all()
-    _banner(f"ADD CASES — {story_key} | {len(cases)} case(s) | Cycle: {cycle_name}")
-    cycle_id = _resolve_cycle(cycle_name)
-    if not cycle_id:
-        raise RuntimeError(f"AIO cycle '{cycle_name}' could not be found or created — no cases added.")
+    _banner(f"ADD CASES — {story_key} | {len(cases)} case(s) | Cycle: {cycle_name or '(none)'}")
+    cycle_id = None
+    if cycle_name:
+        cycle_id = _resolve_cycle(cycle_name)
+        if not cycle_id:
+            raise RuntimeError(f"AIO cycle '{cycle_name}' could not be found or created — no cases added.")
     state = _load_state(story_key)
     story_title = jira_client.get_issue_summary(story_key)
     _create_aio_artifacts(story_key, story_title, cases, state, cycle_id, cycle_name, merge_key_map=True)

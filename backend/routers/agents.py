@@ -47,7 +47,7 @@ class AddCaseItem(BaseModel):
 
 class AddCasesRequest(BaseModel):
     issue_key: str
-    cycle_name: str          # required: AIO cycle the cases are added to
+    cycle_name: str = ""     # optional: AIO cycle the cases are added to
     cases: list[AddCaseItem]
 
 
@@ -143,8 +143,6 @@ def add_cases(req: AddCasesRequest):
     cases = [c.model_dump() for c in req.cases if c.title.strip() and c.expected_result.strip()]
     if not key or not cases:
         return JSONResponse(status_code=400, content={"error": "Issue key and at least one case are required"})
-    if not req.cycle_name.strip():
-        return JSONResponse(status_code=400, content={"error": "AIO cycle name is required"})
     job_id = jobs.create_job("add-cases")
     threading.Thread(
         target=bridge.run_add_cases,
